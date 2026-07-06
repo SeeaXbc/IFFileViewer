@@ -1,0 +1,3 @@
+GET /api/orders 200 12ms
+POST /api/orders,confirm 201 45ms
+GET /api/stock 304 3ms

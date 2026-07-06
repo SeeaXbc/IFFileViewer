@@ -1,0 +1,30 @@
+[
+  {
+    "name": "受注IF",
+    "match": "IF_ORDER_*",
+    "delimiter": ",",
+    "encoding": "shift_jis",
+    "headers": [
+      ["顧客ID", "受注日", "金額", "区分", "備考"],
+      ["必須", "YYYYMMDD", "整数", "1=通常/2=返品", "任意"]
+    ]
+  },
+  {
+    "name": "出荷IF",
+    "match": "IF_SHIP_*",
+    "delimiter": "\t",
+    "encoding": "utf-8",
+    "headers": [
+      ["出荷ID", "出荷日", "倉庫", "数量"]
+    ]
+  },
+  {
+    "name": "在庫IF",
+    "match": "IF_STOCK_*",
+    "delimiter": ",",
+    "encoding": "euc-jp",
+    "headers": [
+      ["品番", "品名", "在庫数"]
+    ]
+  }
+]

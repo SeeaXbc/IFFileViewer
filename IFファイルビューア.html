@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IFファイルビューア</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --border:#d5d9e0; --fg:#1f2430; --sub:#6b7280;
+  --accent:#2563eb; --accent-bg:#eff4ff;
+  --mono:"BIZ UDGothic","BIZ UDゴシック","MS Gothic","ＭＳ ゴシック",monospace;
+  --dgap:0ch;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;font:13px/1.5 "Segoe UI","Meiryo",sans-serif;color:var(--fg);background:var(--bg)}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:2px 10px;cursor:pointer}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+select,input[type=text]{border:1px solid var(--border);border-radius:4px;padding:2px 6px;background:var(--panel)}
+label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-select:none}
+
+/* ---- toolbar ---- */
+#tabbar{display:flex;align-items:flex-end;gap:2px;padding:6px 8px 0;background:var(--bg);overflow-x:auto;flex:none}
+.tab{display:inline-flex;align-items:center;gap:6px;max-width:240px;padding:4px 8px 4px 12px;border:1px solid var(--border);
+  border-bottom:none;border-radius:6px 6px 0 0;background:#e9ecf1;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--panel);font-weight:600}
+.tab .name{overflow:hidden;text-overflow:ellipsis}
+.tab .x{border:none;background:none;padding:0 4px;border-radius:3px;color:var(--sub)}
+.tab .x:hover{background:#d0d5dd;color:#000}
+#btnOpen{margin-left:6px;flex:none}
+#toolbar,#toolbar2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
+  border-top:1px solid var(--border);flex:none}
+#toolbar2{border-top:1px dashed var(--border);padding-top:5px;padding-bottom:5px;background:#fafbfd}
+#toolbar2+#main{border-top:1px solid var(--border)}
+#toolbar .grp,#toolbar2 .grp{display:inline-flex;align-items:center;gap:5px}
+#toolbar .lbl,#toolbar2 .lbl{color:var(--sub);font-size:12px}
+#delimChips{display:inline-flex;gap:3px;flex-wrap:wrap}
+.dchip{padding:1px 8px;border-radius:10px;font-size:12px;font-family:var(--mono)}
+.dchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#delimAdd{width:56px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:2px 12px}
+.seg button+button{border-left:1px solid var(--border)}
+#searchCount{color:var(--sub);min-width:56px;text-align:center;font-size:12px}
+#searchCount.err{color:#c00}
+#searchBox{width:180px}
+#searchBox.err{border-color:#c00;background:#fff5f5}
+
+/* ---- layout ---- */
+#main{flex:1;display:flex;min-height:0}
+#content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
+  tab-size:1;-moz-tab-size:1} /* タブの描画幅を列幅計算(タブ=1文字)と一致させる */
+#drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  color:var(--sub);font-family:"Segoe UI","Meiryo",sans-serif;white-space:normal}
+#drop .big{font-size:20px}
+body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
+
+/* ---- side panel ---- */
+#side{width:300px;flex:none;border-left:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+#side.hidden{display:none}
+#side h3{margin:0;padding:8px 10px;font-size:13px;border-bottom:1px solid var(--border);background:var(--bg)}
+#mkForm{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+#mkForm .row{display:flex;gap:5px;align-items:center}
+#mkForm input[type=text]{flex:1;min-width:0;font-family:var(--mono)}
+#mkList{flex:1;overflow:auto;padding:4px 0}
+.mk{display:flex;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px dotted #e5e8ee}
+.mk .val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);white-space:nowrap}
+.mk .cnt{color:var(--sub);font-size:12px;flex:none}
+.mk input[type=color]{width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:3px;background:none;flex:none;cursor:pointer}
+.mk .x{border:none;background:none;color:var(--sub);padding:0 3px}
+.mk.off .val{opacity:.35;text-decoration:line-through}
+.mk .kind{font-size:11px;color:var(--sub);border:1px solid var(--border);border-radius:3px;padding:0 4px;flex:none}
+
+/* ---- status bar ---- */
+#status{flex:none;display:flex;gap:16px;flex-wrap:wrap;padding:3px 12px;font-size:12px;color:var(--sub);
+  background:var(--bg);border-top:1px solid var(--border)}
+#status b{color:var(--fg);font-weight:600}
+
+/* ---- text view ---- */
+.hdrblock{position:sticky;top:0;z-index:5;background:#fbf8ee;border-bottom:1px solid #d9d2b8;user-select:none;width:max-content;min-width:100%}
+.hdrrow{color:#7a6a2f}
+.hcell{display:inline-block;overflow:hidden;vertical-align:top;padding:0 1px}
+.trow{width:max-content;min-width:100%}
+.trow:hover{background:#f2f6ff}
+.ln{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;text-align:right;
+  padding:0 8px 0 4px;margin-right:6px;user-select:none;border-right:1px solid var(--border)}
+.hdrblock .ln{background:#f0ead6;border-right:1px solid #d9d2b8}
+.cell{display:inline-block;vertical-align:top}
+.cell .v{display:inline-block;vertical-align:top}
+.cell .dl{display:inline-block;vertical-align:top;color:#b03060;margin-right:var(--dgap)}
+.xcell{display:inline-block;vertical-align:top;overflow:hidden;border-right:1px solid #e2e5ea;padding:0 4px}
+.hit{background:#b9f;outline:1px solid #96f}
+.hit.cur{background:#f80;color:#fff;outline:1px solid #d60}
+/* 不可視文字の可視化：疑似要素のオーバーレイのみ。DOMテキストは元の文字のままなのでコピーに影響しない */
+.ws{position:relative}
+.ws::before{position:absolute;left:0;top:0;color:#a8b3c2;pointer-events:none}
+.ws-sp::before{content:'·'}
+.ws-tab::before{content:'→'}
+.ws-zsp::before{content:'□'}
+.ws-cr{display:inline-block;min-width:1ch}
+.ws-cr::before{content:'␍';font-size:85%}
+#content .more{display:block;width:max-content;margin:8px;font-family:inherit}
+
+/* ---- binary view ---- */
+.bruler{position:sticky;top:0;z-index:5;background:#eef1f5;border-bottom:1px solid var(--border);color:var(--sub);user-select:none;width:max-content;min-width:100%}
+.brow{width:max-content;min-width:100%}
+.brow:hover{background:#f2f6ff}
+.boff{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;
+  padding:0 8px 0 4px;margin-right:10px;user-select:none;border-right:1px solid var(--border)}
+.bruler .boff{background:#e4e8ee}
+.bhex{margin-right:16px}
+.cont{color:#c0c6cf}
+.bsel{background:#1d4ed8;color:#fff;border-radius:2px}
+#mkList details{border-bottom:1px dotted #e5e8ee}
+#mkList summary{padding:4px 10px;color:var(--sub);cursor:pointer;font-size:12px;user-select:none}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:4px;padding:1px 4px 1px 8px;font-family:var(--mono)}
+.chip .x{border:none;background:none;color:var(--sub);cursor:pointer;padding:0 2px}
+
+/* ---- modal ---- */
+#modalBack,#helpBack{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
+#modalBack.show,#helpBack.show{display:flex}
+#modal,#helpModal{width:min(720px,92vw);max-height:88vh;display:flex;flex-direction:column;background:var(--panel);border-radius:8px;
+  box-shadow:0 8px 30px rgba(0,0,0,.25)}
+#modal header,#helpModal header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+#modal header h2,#helpModal header h2{margin:0;font-size:15px}
+#modal .body,#helpModal .body{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+#helpModal{width:min(780px,92vw)}
+.help h3{margin:14px 0 4px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:3px}
+.help h3:first-child{margin-top:0}
+.help p,.help ul{margin:4px 0}
+.help ul{padding-left:22px}
+.help li{margin:2px 0}
+.help table{border-collapse:collapse;margin:4px 0}
+.help th,.help td{border:1px solid var(--border);padding:2px 10px;text-align:left;font-weight:normal}
+.help th{background:var(--bg);color:var(--sub);font-size:12px}
+.help kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--bg);font-family:var(--mono);font-size:12px}
+.help .tag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:0 5px;font-size:12px;color:var(--sub)}
+.help code{background:var(--bg);border-radius:3px;padding:0 4px;font-family:var(--mono)}
+#defsTa{width:100%;height:260px;font-family:var(--mono);font-size:12px;border:1px solid var(--border);border-radius:4px;padding:6px;white-space:pre;resize:vertical}
+#defsErr{color:#c00;font-size:12px;white-space:pre-wrap}
+#lsWarn{color:#b45309;font-size:12px}
+#modal .note{color:var(--sub);font-size:12px}
+#modal footer{display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--border)}
+
+#toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#333;color:#fff;padding:7px 18px;
+  border-radius:20px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;max-width:80vw}
+#toast.show{opacity:.94}
+.hiddenCtl{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="tabbar">
+  <button id="btnOpen" title="ファイルを開く">📂 開く</button>
+</div>
+
+<div id="toolbar">
+  <div class="grp">
+    <span class="lbl">モード</span>
+    <span class="seg"><button id="btnText">テキスト</button><button id="btnBin">バイナリ</button></span>
+  </div>
+  <div class="grp">
+    <span class="lbl">文字コード</span>
+    <select id="selEnc"></select>
+  </div>
+  <div class="grp">
+    <span class="lbl">検索</span>
+    <input type="text" id="searchBox" placeholder="文字列">
+    <label class="chk text-only" title="大文字小文字を区別"><input type="checkbox" id="chkCase" checked>Aa</label>
+    <button id="btnRegex" class="text-only" title="正規表現で検索（クリックで切替）" style="font-family:var(--mono);padding:2px 7px">.*</button>
+    <button id="btnPrev" title="前へ (Shift+F3)">▲</button>
+    <button id="btnNext" title="次へ (F3)">▼</button>
+    <span id="searchCount"></span>
+  </div>
+  <div class="grp" style="margin-left:auto">
+    <span class="lbl">拡大</span>
+    <span class="seg"><button id="zoomOut" title="縮小">−</button><button id="zoomReset" title="クリックで100%に戻す">100%</button><button id="zoomIn" title="拡大">＋</button></span>
+    <button id="btnSide">🖍 マーカー</button>
+    <button id="btnSettings">⚙ 設定</button>
+    <button id="btnHelp" title="使い方">❓ ヘルプ</button>
+  </div>
+</div>
+<div id="toolbar2">
+  <div class="grp">
+    <span class="lbl">区切り</span>
+    <span id="delimChips"></span>
+    <input type="text" id="delimAdd" size="4" placeholder="＋任意" title="任意の区切り文字を追加（Enterで確定・複数登録可）">
+  </div>
+  <div class="grp">
+    <span class="lbl">改行</span>
+    <select id="selNl">
+      <option value="auto">自動判定</option>
+      <option value="crlf">CRLF</option>
+      <option value="lf">LF</option>
+      <option value="cr">CR</option>
+    </select>
+  </div>
+  <div class="grp">
+    <span class="lbl">表示</span>
+    <span class="seg"><button id="btnExcel">グリッド</button><button id="btnEm">桁揃え</button></span>
+  </div>
+  <div class="grp">
+    <span class="lbl">間隔</span>
+    <input type="number" id="selGap" min="0" max="16" step="1" value="0" style="width:52px" title="区切り後の表示間隔（0〜16文字）">
+    <span class="lbl">文字</span>
+  </div>
+  <div class="grp">
+    <button id="btnWs" title="スペース・タブ・全角スペース・CR を可視化（表示のみ。コピーには影響しません）">␣ 可視化</button>
+  </div>
+  <div class="grp">
+    <span class="lbl">ヘッダー定義</span>
+    <select id="selDef" style="max-width:180px"></select>
+  </div>
+</div>
+
+<div id="main">
+  <div id="content">
+    <div id="drop">
+      <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
+      <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+      <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
+      <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+    </div>
+  </div>
+  <div id="side" class="hidden">
+    <h3 id="sideTitle">マーカー</h3>
+    <div id="mkForm"></div>
+    <div id="mkList"></div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<div id="modalBack">
+  <div id="modal">
+    <header><h2>設定 / 仮想ヘッダー定義</h2><button id="btnModalClose">✕</button></header>
+    <div class="body">
+      <div id="lsWarn" class="hiddenCtl">⚠ この環境では localStorage が使用できません。設定・定義は保存されず、このセッション内のみ有効です。定義はJSONファイルの読み込みで運用してください。</div>
+      <label class="chk"><input type="checkbox" id="chkContDot">バイナリモードの継続セルに「·」を表示する（OFFで空白）</label>
+      <div class="grp"><span>フォント：</span>
+        <select id="selFont"></select>
+        <input type="text" id="fontCustom" class="hiddenCtl" style="width:280px" placeholder='CSS font-family 例: "Sarasa Mono J",monospace'>
+      </div>
+      <div class="note">桁揃え表示・バイナリ表示は「半角:全角＝1:2」の等幅フォントを前提としています（BIZ UDゴシック / MS ゴシック等）。それ以外のフォントでは桁がずれることがあります。</div>
+      <div><b>登録済みの任意区切り文字</b>
+        <div id="delimList" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+      </div>
+      <div>
+        <b>仮想ヘッダー定義（JSON配列）</b>
+        <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。</div>
+      </div>
+      <textarea id="defsTa" spellcheck="false"></textarea>
+      <div id="defsErr"></div>
+      <div class="note">定義JSONファイルから読み込み：<input type="file" id="defsFile" accept=".json"></div>
+    </div>
+    <footer>
+      <button id="btnDefsSample">サンプルを挿入</button>
+      <button id="btnDefsSave" class="on">保存して閉じる</button>
+    </footer>
+  </div>
+</div>
+
+<div id="helpBack">
+  <div id="helpModal">
+    <header><h2>❓ 使い方</h2><button id="btnHelpClose">✕</button></header>
+    <div class="body help">
+      <h3>このツールについて</h3>
+      <p>システム間連携のIFファイル（拡張子なし可）、CSV/TSV、任意区切りテキスト、バイナリファイルを閲覧する<b>読み取り専用ビューア</b>です。元ファイルへの書き込みは一切行いません。</p>
+
+      <h3>ファイルを開く</h3>
+      <ul>
+        <li>画面へ<b>ドラッグ&amp;ドロップ</b>、または左上の「📂 開く」から選択（複数可）。ファイルはタブで切り替えます。</li>
+        <li>開いた直後はファイル内容から<b>テキスト/バイナリを自動判定</b>。ツールバーの「モード」でいつでも切替できます。</li>
+        <li>文字コードは自動判定（BOM＋推定）。化ける場合は「文字コード」で明示指定してください。</li>
+      </ul>
+
+      <h3>テキストモード</h3>
+      <ul>
+        <li><b>区切り</b>：チップをクリックして有効/無効を切替。<b>複数同時に有効化</b>できます（例：「,」＋「空白」）。「＋任意」欄に入力して<kbd>Enter</kbd>で任意の区切り文字を登録、登録チップは<b>右クリックで登録解除</b>。</li>
+        <li><b>改行</b>：自動判定のほか CRLF / LF / CR を明示指定できます。指定した改行のみで行分割し、他の改行文字はデータとして残ります（␣可視化で <code>␍</code> として確認可能）。</li>
+        <li><b>表示</b>：<span class="tag">グリッド</span> セル分割・区切り非表示／<span class="tag">桁揃え</span> 区切りを表示したまま列幅を揃える。</li>
+        <li><b>間隔</b>：区切りの後ろに表示上の間隔（0〜16文字）を追加。表示のみでコピーには影響しません。</li>
+        <li><b>␣ 可視化</b>：スペース <code>·</code>、タブ <code>→</code>、全角スペース <code>□</code>、CR <code>␍</code> を淡色表示。コピーすると元の文字が得られます。</li>
+      </ul>
+
+      <h3>仮想ヘッダー定義</h3>
+      <p>列の説明行を表示層に重ねる機能です（実データは変更しません）。定義は⚙設定にJSONで登録するか、定義JSONファイルをドロップします。</p>
+      <ul>
+        <li><code>match</code>（ファイル名のワイルドカード）に一致した定義が自動適用されます。複数一致時は先頭優先で、「ヘッダー定義」から切替可能。</li>
+        <li>定義の <code>delimiter</code> / <code>encoding</code> は開いたときの初期値になり、手動変更が常に優先。BOM付きファイルはBOM判定が優先されます。</li>
+      </ul>
+
+      <h3>マーカー（🖍）</h3>
+      <ul>
+        <li><b>テキスト</b>：文字列（Aa切替可）・行番号・列番号（<code>3,10-20</code> の範囲指定可）をハイライト。色・ON/OFF・件数表示付き。</li>
+        <li>文字列マーカーは追加フォームの <code>.*</code> ボタンで<b>正規表現マーカー</b>にできます（構文・行単位の扱いは検索と同じ。下の正規表現サンプル参照）。重い正規表現を登録したままにすると再描画が遅くなることがあります。</li>
+        <li><b>バイナリ</b>：16進バイト列（例 <code>0D 0A</code>）を入力してマーク。HEX側とデコード側の両方に連動します。</li>
+        <li>バイナリには <b>制御コード候補</b>（STX/ETX/CRLF/NUL等19種）をOFF状態でプリセット済み。折りたたみを開いてONにしてください。</li>
+      </ul>
+
+      <h3>バイナリモード</h3>
+      <ul>
+        <li>左からオフセット／HEX（16バイト/行）／指定文字コードでのデコード結果。全角などのマルチバイト文字は<b>先頭バイトの位置</b>に表示され、後続バイトは <code>·</code>（継続）になります。</li>
+        <li>HEX側・デコード側の<b>クリックで対応箇所を相互ハイライト</b>。マルチバイト文字は全バイトが選択され、ステータスバーに詳細表示。再クリックか<kbd>Esc</kbd>で解除。</li>
+        <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
+      </ul>
+
+      <h3>検索</h3>
+      <ul>
+        <li>テキストモードは文字列（Aaで大文字小文字）、バイナリモードは16進パターン（例 <code>0D 0A</code>）。</li>
+        <li><b><code>.*</code> ボタンで正規表現検索に切替</b>（VSCodeの検索と同じイメージ）。Aa（大文字小文字）は正規表現でも有効です。</li>
+        <li>正規表現は<b>行単位</b>で照合します（複数行にまたがる一致はできません）。パターンが不正な場合は件数欄に「無効」と表示されます。</li>
+        <li><kbd>Enter</kbd>/<kbd>F3</kbd>で次へ、<kbd>Shift+F3</kbd>で前へ。未表示領域のヒットへは表示を拡張してジャンプします。</li>
+      </ul>
+
+      <h3>正規表現サンプル</h3>
+      <table>
+        <tr><th>パターン</th><th>意味</th></tr>
+        <tr><td><code>\d{8}</code></td><td>8桁の数字（YYYYMMDD形式の日付など）</td></tr>
+        <tr><td><code>^C\d+</code></td><td>行頭が「C＋数字」で始まる行（顧客IDなど）</td></tr>
+        <tr><td><code>,{2,}</code></td><td>カンマの連続（空フィールドの検出）</td></tr>
+        <tr><td><code>^,|,$</code></td><td>行頭または行末のカンマ</td></tr>
+        <tr><td><code>^$</code></td><td>空行</td></tr>
+        <tr><td><code>\s+$</code></td><td>行末の空白（見えないゴミの検出）</td></tr>
+        <tr><td><code>[^\x00-\x7F]+</code></td><td>非ASCII文字（全角文字・半角カナなど）の連続</td></tr>
+        <tr><td><code>TOKYO|OSAKA</code></td><td>いずれかの語を含む（OR検索）</td></tr>
+        <tr><td><code>^(?!C).</code></td><td>「C」で始まらない行（否定先読み）</td></tr>
+        <tr><td><code>^([^,]*,){3}9</code></td><td>4列目が「9」で始まる行（カンマ区切りの場合）</td></tr>
+      </table>
+      <p class="tag" style="border:none;padding:0">※ JavaScript (ECMAScript) の正規表現構文です。<code>.</code> や <code>|</code> などを文字として検索する場合は <code>\.</code> のようにエスケープするか、通常検索に切り替えてください。</p>
+
+      <h3>ショートカット</h3>
+      <table>
+        <tr><th>キー</th><th>動作</th></tr>
+        <tr><td><kbd>Ctrl+F</kbd></td><td>検索ボックスへフォーカス</td></tr>
+        <tr><td><kbd>F3</kbd> / <kbd>Shift+F3</kbd></td><td>次を検索 / 前を検索</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>ダイアログを閉じる / バイナリの選択解除</td></tr>
+      </table>
+
+      <h3>設定の保存について</h3>
+      <p>ヘッダー定義・登録区切り文字・フォント・拡大率などはブラウザの localStorage に保存されます。環境によって localStorage が使えない場合、設定は保存されませんが閲覧機能はすべて動作します（ヘッダー定義はJSONファイルのドロップで代用できます）。</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="fileInput" multiple style="display:none">
+
+<script>
+'use strict';
+/* =====================================================================
+ * IFファイルビューア — 単一HTML・読み取り専用
+ * 要件定義書: IFファイルビューア_要件定義書.md
+ * =================================================================== */
+
+/* ---------- 小道具 ---------- */
+const $ = s => document.querySelector(s);
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function fmtSize(n){ if(n<1024)return n+' B'; if(n<1048576)return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(2)+' MB'; }
+let toastTimer=null;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),3000); }
+
+/* localStorage ラッパ（file:// では無効な環境があるため必ず try/catch） */
+const LS = {
+  ok:(()=>{ try{ localStorage.setItem('__ifv_t','1'); localStorage.removeItem('__ifv_t'); return true; }catch(e){ return false; } })(),
+  get(k,d){ if(!this.ok) return d; try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ if(!this.ok) return; try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- 状態 ---------- */
+const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
+const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
+const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
+const BIN_JUMP_CONFIRM = 2*1024*1024; // これを超える表示拡張は確認する
+const MAX_COLW   = 400;          // 列幅の上限(ch) 異常データ対策
+const PALETTE = ['#ffe066','#a5d8ff','#b2f2bb','#ffc9c9','#e599f7','#ffd8a8','#99e9f2','#d8f5a2'];
+
+const FONTS = {
+  biz:      {label:'BIZ UDゴシック（既定・0/O判別しやすい）', css:'"BIZ UDGothic","BIZ UDゴシック","MS Gothic","ＭＳ ゴシック",monospace'},
+  msgothic: {label:'MS ゴシック', css:'"MS Gothic","ＭＳ ゴシック",monospace'},
+  msmincho: {label:'MS 明朝', css:'"MS Mincho","ＭＳ 明朝",monospace'},
+  custom:   {label:'カスタム…', css:''}
+};
+const ZOOMS = [50,60,70,80,90,100,110,125,150,175,200,250,300];
+const DELIM_PRESETS = [[',','カンマ ,'],['\t','タブ'],[';','セミコロン ;'],['|','パイプ |'],[' ','スペース']];
+/* 一般的な制御コード：マーク候補としてプリセット（初期OFF）(5.4) */
+const CTRL_PRESETS = [
+  ['00','NUL'],['01','SOH'],['02','STX'],['03','ETX'],['04','EOT'],['05','ENQ'],['06','ACK'],
+  ['09','TAB'],['0A','LF'],['0D','CR'],['0D 0A','CRLF'],['10','DLE'],['15','NAK'],['16','SYN'],
+  ['1B','ESC'],['1C','FS'],['1D','GS'],['1E','RS'],['1F','US']
+];
+
+let defs = LS.get('ifv_defs', []);            // 仮想ヘッダー定義(4.3)
+let customDelims = LS.get('ifv_delims', []);  // 登録済みの任意区切り文字
+let settings = Object.assign({contDot:true, zoom:100, font:'biz', fontCustom:'', delimGap:0, showWs:false}, LS.get('ifv_settings', {}));
+const tabs = []; let cur = -1;
+let mkSeq = 0;
+const SEARCH = {t:'s'}, SEARCH_CUR = {t:'sc'};  // ハイライト用番兵
+
+function curTab(){ return cur>=0 ? tabs[cur] : null; }
+
+/* ---------- 文字コード ---------- */
+const ENCODINGS = [
+  ['shift_jis','Shift-JIS (CP932)'],
+  ['utf-8','UTF-8'],
+  ['utf-16le','UTF-16LE'],
+  ['utf-16be','UTF-16BE'],
+  ['euc-jp','EUC-JP'],
+  ['windows-1252','Latin-1 (CP1252)'],
+  ['ascii','ASCII']
+];
+function encLabel(v){ const e=ENCODINGS.find(x=>x[0]===v); return e?e[1]:v; }
+
+function isValidUtf8(b, limit){
+  const n = Math.min(b.length, limit); let multi=false;
+  for(let i=0;i<n;){
+    const c=b[i];
+    if(c<0x80){ i++; continue; }
+    let len; if((c&0xE0)===0xC0)len=2; else if((c&0xF0)===0xE0)len=3; else if((c&0xF8)===0xF0)len=4; else return null;
+    if(i+len>n){ break; } // 末尾切れは許容
+    for(let j=1;j<len;j++) if((b[i+j]&0xC0)!==0x80) return null;
+    multi=true; i+=len;
+  }
+  return {multi};
+}
+/* BOM判定＋簡易推定(6章) */
+function detectEncoding(b){
+  if(b.length>=3 && b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF) return 'utf-8';
+  if(b.length>=2 && b[0]===0xFF&&b[1]===0xFE) return 'utf-16le';
+  if(b.length>=2 && b[0]===0xFE&&b[1]===0xFF) return 'utf-16be';
+  const r = isValidUtf8(b, 65536);
+  if(r) return 'utf-8';           // 純ASCII含む
+  return 'shift_jis';             // 日本語業務ファイル前提の既定
+}
+function decodeText(bytes, enc){
+  if(enc==='ascii'){
+    let s=''; for(let i=0;i<bytes.length;i++){ const b=bytes[i];
+      s += (b===0x0A||b===0x0D||b===0x09||(b>=0x20&&b<=0x7E)) ? String.fromCharCode(b) : '.'; }
+    return s;
+  }
+  try{ return new TextDecoder(enc).decode(bytes); }
+  catch(e){ return new TextDecoder('utf-8').decode(bytes); }
+}
+/* 初期モードの簡易判定(3章) */
+function detectMode(b){
+  if(b.length>=2 && ((b[0]===0xFF&&b[1]===0xFE)||(b[0]===0xFE&&b[1]===0xFF))) return 'text'; // UTF-16 BOM
+  const n=Math.min(b.length,4096); if(n===0) return 'text';
+  let bad=0;
+  for(let i=0;i<n;i++){ const c=b[i];
+    if(c===0) { bad+=4; continue; }
+    if(c<0x20 && c!==9 && c!==10 && c!==13 && c!==27) bad++;
+  }
+  return (bad/n > 0.02) ? 'bin' : 'text';
+}
+
+/* ---------- 表示幅（MS Gothic 前提: 半角1/全角2） ---------- */
+function chW(cp){
+  if(cp<0x2000) return 1;                       // Latin/ギリシャ/キリル等
+  if(cp>=0xFF61&&cp<=0xFF9F) return 1;          // 半角カナ
+  if(cp>=0xFFE8&&cp<=0xFFEE) return 1;
+  if(cp>=0x2000&&cp<0x2E80&&!(cp>=0x2500&&cp<0x2600)) return 1; // 記号類は概ね半角扱い
+  return 2;
+}
+function strW(s){ let w=0; for(const c of s) w+=chW(c.codePointAt(0)); return w; }
+
+/* =====================================================================
+ * タブ / ファイルオープン
+ * =================================================================== */
+function looksLikeDefs(j){
+  const arr = Array.isArray(j)?j:[j];
+  return arr.length>0 && arr.every(d => d && typeof d==='object' && typeof d.match==='string' && Array.isArray(d.headers));
+}
+function wildcardToRe(pat){
+  return new RegExp('^'+pat.replace(/[.+^${}()[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.')+'$','i');
+}
+function matchDef(name){
+  for(let i=0;i<defs.length;i++){ try{ if(wildcardToRe(defs[i].match).test(name)) return i; }catch(e){} }
+  return -1;
+}
+
+async function openFiles(fileList){
+  for(const f of fileList){
+    const buf = await f.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    /* 定義JSONファイル判定：.json かつ定義スキーマに合致 → 定義として読み込む(4.3) */
+    if(/\.json$/i.test(f.name)){
+      try{
+        const j = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+        if(looksLikeDefs(j)){
+          const arr = Array.isArray(j)?j:[j];
+          defs = arr.concat(defs);
+          LS.set('ifv_defs', defs);
+          toast(`ヘッダー定義 ${arr.length} 件を読み込みました（${f.name}）`);
+          tabs.forEach(t=>{ if(t.defSel==='auto') t._dirtyView=true; });
+          if(curTab()) renderAll();
+          continue;
+        }
+      }catch(e){ /* JSONでなければ通常ファイルとして開く */ }
+    }
+    const tab = createTab(f.name, bytes);
+    tabs.push(tab); cur = tabs.length-1;
+  }
+  renderTabs(); renderAll();
+}
+
+function createTab(name, bytes){
+  const tab = {
+    name, bytes,
+    mode: detectMode(bytes),
+    encSel: 'auto',                 // 'auto' or ラベル
+    nlSel: 'auto',                  // 'auto' | 'crlf' | 'lf' | 'cr'
+    delims: [','],                  // 同時に有効な区切り文字（複数可）
+    style: LS.get('ifv_style','excel'),
+    defSel: 'auto',                 // 'auto' | 'none' | index
+    markers: [], binMarkers: [],
+    binLimit: Math.min(BIN_STEP, bytes.length),
+    renderedText: 0, renderedBin: 0,
+    query:'', queryCase:true, queryRegex:false, queryError:null, hits:[], hitsByLine:new Map(), curHit:-1,
+    binQuery:'', binHits:[], binCurHit:-1, binSearchLen:0,
+    selA:null, selB:null,
+    _cache:{}
+  };
+  /* 自動一致した定義の delimiter/encoding を初期値として適用(4.3) */
+  const di = matchDef(name);
+  if(di>=0){
+    const d = defs[di];
+    if(typeof d.delimiter==='string' && d.delimiter) tab.delims = [d.delimiter];
+    /* BOM付きファイルはBOM判定が確定的なので、定義の encoding より優先する */
+    const hasBOM = (bytes.length>=2 && ((bytes[0]===0xFF&&bytes[1]===0xFE)||(bytes[0]===0xFE&&bytes[1]===0xFF)))
+                || (bytes.length>=3 && bytes[0]===0xEF&&bytes[1]===0xBB&&bytes[2]===0xBF);
+    if(d.encoding && !hasBOM && ENCODINGS.some(e=>e[0]===d.encoding)) tab.encSel = d.encoding;
+  }
+  /* 制御コードのマーク候補（初期OFF）(5.4) */
+  tab.binMarkers = CTRL_PRESETS.map(([v,l],i)=>
+    ({id:++mkSeq, value:v, label:l, preset:true, color:PALETTE[i%PALETTE.length], enabled:false, count:0}));
+  return tab;
+}
+
+function renderTabs(){
+  const bar = $('#tabbar');
+  bar.querySelectorAll('.tab').forEach(e=>e.remove());
+  const open = $('#btnOpen');
+  tabs.forEach((t,i)=>{
+    const d = el('div','tab'+(i===cur?' on':''));
+    d.appendChild(el('span','name',t.name));
+    const x = el('button','x','✕'); x.title='閉じる';
+    x.onclick = ev=>{ ev.stopPropagation(); closeTab(i); };
+    d.appendChild(x);
+    d.onclick = ()=>{ if(cur!==i){ cur=i; renderTabs(); renderAll(); } };
+    bar.insertBefore(d, open);
+  });
+}
+function closeTab(i){
+  tabs.splice(i,1);
+  if(cur>=tabs.length) cur=tabs.length-1;
+  renderTabs(); renderAll();
+}
+
+/* =====================================================================
+ * テキストモード
+ * =================================================================== */
+function resolvedEnc(tab){ return tab.encSel==='auto' ? (tab._detEnc||(tab._detEnc=detectEncoding(tab.bytes))) : tab.encSel; }
+function resolvedDef(tab){
+  if(tab.defSel==='none') return null;
+  if(tab.defSel==='auto'){ const i=matchDef(tab.name); return i>=0?defs[i]:null; }
+  return defs[tab.defSel]||null;
+}
+
+/* 複数区切り文字での分割。長い区切りを優先（longest match） */
+function tokenize(line, delims){
+  if(!delims.length) return {f:[line], d:[]};
+  const fields=[], ds=[];
+  let start=0, i=0;
+  while(i<line.length){
+    let hit=null;
+    for(const dl of delims){ if(line.startsWith(dl,i)){ hit=dl; break; } }
+    if(hit){ fields.push(line.slice(start,i)); ds.push(hit); i+=hit.length; start=i; }
+    else i++;
+  }
+  fields.push(line.slice(start));
+  return {f:fields, d:ds};
+}
+const NL_TERMS = {crlf:'\r\n', lf:'\n', cr:'\r'};
+
+function prepText(tab){
+  const enc = resolvedEnc(tab), c = tab._cache;
+  if(c.textEnc !== enc){
+    c.textEnc = enc;
+    c.text = decodeText(tab.bytes, enc);
+    c.lower = null;
+    let crlf=0, lf=0, cr=0;
+    const t = c.text;
+    for(let i=0;i<t.length;i++){
+      const ch=t.charCodeAt(i);
+      if(ch===13){ if(t.charCodeAt(i+1)===10){crlf++;i++;} else cr++; }
+      else if(ch===10) lf++;
+    }
+    c.nl = {crlf,lf,cr};
+    c.linesKey = null;
+  }
+  /* 行分割：自動判定（全種を行区切り扱い）または指定改行のみで分割(4.1) */
+  const nlKey = tab.nlSel||'auto';
+  if(c.linesKey !== nlKey){
+    c.linesKey = nlKey;
+    const term = NL_TERMS[nlKey];
+    c.lines = term ? c.text.split(term) : c.text.split(/\r\n|\r|\n/);
+    c.trailingNL = c.lines.length>1 && c.lines[c.lines.length-1]==='';
+    if(c.trailingNL) c.lines.pop();
+    if(c.lines.length===1 && c.lines[0]==='') c.lines=[];
+    c.cellsKey = null; // 再パース要
+  }
+  const delims = tab.delims.filter(Boolean).slice().sort((a,b)=>b.length-a.length);
+  const def = resolvedDef(tab);
+  const cellsKey = JSON.stringify(delims) + '|' + (def ? JSON.stringify(def.headers) : '');
+  if(c.cellsKey !== cellsKey){
+    c.cellsKey = cellsKey;
+    c.rows = []; c.rowDelims = [];
+    for(const l of c.lines){
+      const {f,d} = tokenize(l, delims);
+      c.rows.push(f); c.rowDelims.push(d);
+    }
+    /* 列幅計算：全データ + ヘッダー定義（幅は最大値、上限あり）。dW=各境界の区切り文字の最大幅 */
+    let nc = 0;
+    for(const r of c.rows) if(r.length>nc) nc=r.length;
+    const hdr = def ? def.headers : [];
+    for(const h of hdr) if(h.length>nc) nc=h.length;
+    const w = new Array(nc).fill(1);
+    const dw = new Array(Math.max(0,nc-1)).fill(0);
+    for(let ri=0; ri<c.rows.length; ri++){
+      const r=c.rows[ri], ds=c.rowDelims[ri];
+      for(let i=0;i<r.length;i++){ const x=strW(r[i]); if(x>w[i]) w[i]=x; }
+      for(let i=0;i<ds.length;i++){ const x=strW(ds[i]); if(x>dw[i]) dw[i]=x; }
+    }
+    for(const h of hdr) for(let i=0;i<h.length;i++){ const x=strW(String(h[i])); if(x>w[i]) w[i]=x; }
+    for(let i=0;i<nc;i++) if(w[i]>MAX_COLW) w[i]=MAX_COLW;
+    c.colW = w; c.dW = dw;
+  }
+  return c;
+}
+
+/* --- マーカー(4.4) --- */
+function parseNumSpec(s){ /* "3,10-20" → 判定関数と列挙 */
+  const parts = String(s).split(',').map(x=>x.trim()).filter(Boolean);
+  const ranges=[];
+  for(const p of parts){
+    const m = p.match(/^(\d+)(?:-(\d+))?$/); if(!m) continue;
+    const a=+m[1], b=m[2]?+m[2]:+m[1];
+    ranges.push([Math.min(a,b), Math.max(a,b)]);
+  }
+  return {
+    test(n){ return ranges.some(r=>n>=r[0]&&n<=r[1]); },
+    countIn(max){ let c=0; for(const r of ranges){ const lo=Math.max(1,r[0]), hi=Math.min(max,r[1]); if(hi>=lo)c+=hi-lo+1; } return c; },
+    empty: ranges.length===0
+  };
+}
+function countOcc(hay, needle){
+  if(!needle) return 0;
+  let c=0,i=0;
+  while((i=hay.indexOf(needle,i))>=0){ c++; i+=needle.length; }
+  return c;
+}
+function recountTextMarkers(tab){
+  const c = prepText(tab);
+  for(const m of tab.markers){
+    if(m.type==='string'){
+      if(m.regex){
+        const re = markerRe(m);
+        if(!re){ m.count = null; continue; }   // 不正パターン
+        let n=0;
+        for(const line of c.lines) for(const mt of line.matchAll(re)) if(mt[0].length) n++;
+        m.count = n;
+      }
+      else if(m.caseSensitive) m.count = countOcc(c.text, m.value);
+      else { if(c.lower==null) c.lower=c.text.toLowerCase(); m.count = countOcc(c.lower, m.value.toLowerCase()); }
+    }else if(m.type==='line'){
+      m.count = parseNumSpec(m.value).countIn(c.lines.length);
+    }else{ /* col: 対象列が存在する行数 × 列数 */
+      const spec = parseNumSpec(m.value); let n=0;
+      for(const r of c.rows) for(let i=0;i<r.length;i++) if(spec.test(i+1)) n++;
+      m.count = n;
+    }
+  }
+}
+
+/* --- 検索(6章) --- */
+function rebuildTextSearch(tab){
+  const c = prepText(tab);
+  tab.hits=[]; tab.hitsByLine=new Map(); tab.curHit=-1; tab.queryError=null;
+  const q = tab.query;
+  if(!q){ updateSearchCount(); return; }
+  const MAXHIT = 100000;
+  const addHit = (li,s,e)=>{
+    const h={line:li, s, e};
+    tab.hits.push(h);
+    let a=tab.hitsByLine.get(li); if(!a){a=[];tab.hitsByLine.set(li,a);} a.push(h);
+    return tab.hits.length<MAXHIT;
+  };
+  if(tab.queryRegex){
+    /* 正規表現検索(6章)：行単位で照合。長さ0の一致は無視 */
+    let re;
+    try{ re = new RegExp(q, tab.queryCase?'g':'gi'); }
+    catch(err){ tab.queryError = err.message; updateSearchCount(); return; }
+    outer1:
+    for(let li=0; li<c.lines.length; li++){
+      for(const m of c.lines[li].matchAll(re)){
+        if(!m[0].length) continue;
+        if(!addHit(li, m.index, m.index+m[0].length)) break outer1;
+      }
+    }
+  }else{
+    const needle = tab.queryCase ? q : q.toLowerCase();
+    outer2:
+    for(let li=0; li<c.lines.length; li++){
+      const line = tab.queryCase ? c.lines[li] : c.lines[li].toLowerCase();
+      let i=0;
+      while((i=line.indexOf(needle,i))>=0){
+        if(!addHit(li, i, i+q.length)) break outer2;
+        i+=Math.max(1,q.length);
+      }
+    }
+  }
+  updateSearchCount();
+}
+function gotoTextHit(dir){
+  const tab=curTab(); if(!tab||!tab.hits.length){ return; }
+  tab.curHit = (tab.curHit + dir + tab.hits.length) % tab.hits.length;
+  const h = tab.hits[tab.curHit];
+  ensureTextRows(tab, h.line+1);
+  refreshRenderedTextRows(tab);
+  const row = $('#content').querySelector(`[data-l="${h.line}"]`);
+  if(row) row.scrollIntoView({block:'center'});
+  updateSearchCount();
+}
+
+/* --- 描画 --- */
+function markerRe(m){
+  /* 正規表現マーカーのコンパイル結果をキャッシュ（行ごとの再コンパイルを避ける） */
+  const key = (m.caseSensitive?'s':'i')+' '+m.value;
+  if(m._reKey !== key){
+    m._reKey = key;
+    try{ m._re = new RegExp(m.value, m.caseSensitive?'g':'gi'); m._reErr = null; }
+    catch(err){ m._re = null; m._reErr = err.message; }
+  }
+  return m._re;
+}
+function styleArrForLine(tab, li, len){
+  /* 行文字列の各文字に対するハイライト（文字列マーカー→検索が上書き） */
+  let arr = null;
+  const c = tab._cache;
+  const mk = tab.markers.filter(m=>m.enabled && m.type==='string' && m.value);
+  const line = c.lines[li];
+  for(const m of mk){
+    if(m.regex){
+      const re = markerRe(m); if(!re) continue;
+      for(const mt of line.matchAll(re)){
+        if(!mt[0].length) continue;   // 長さ0の一致は無視
+        if(!arr) arr = new Array(len).fill(null);
+        for(let j=mt.index;j<mt.index+mt[0].length && j<len;j++) if(!arr[j]) arr[j]=m; // 先勝ち
+      }
+      continue;
+    }
+    const hay = m.caseSensitive ? line : line.toLowerCase();
+    const nd  = m.caseSensitive ? m.value : m.value.toLowerCase();
+    let i=0;
+    while((i=hay.indexOf(nd,i))>=0){
+      if(!arr) arr = new Array(len).fill(null);
+      for(let j=i;j<i+m.value.length && j<len;j++) if(!arr[j]) arr[j]=m;   // 先勝ち
+      i+=Math.max(1,m.value.length);
+    }
+  }
+  const hits = tab.hitsByLine.get(li);
+  if(hits){
+    if(!arr) arr = new Array(len).fill(null);
+    for(const h of hits){
+      const st = (tab.hits[tab.curHit]===h) ? SEARCH_CUR : SEARCH;
+      for(let j=h.s;j<h.e && j<len;j++) arr[j]=st;                          // 検索が前面(6章)
+    }
+  }
+  return arr;
+}
+function appendVis(parent, s){
+  /* 不可視文字の可視化(4.x)：該当文字を .ws スパンで包む（文字自体は本物のまま） */
+  if(!settings.showWs){ parent.appendChild(document.createTextNode(s)); return; }
+  let last=0;
+  for(let i=0;i<s.length;i++){
+    const ch=s[i]; let cls=null;
+    if(ch===' ') cls='ws-sp';
+    else if(ch==='\t') cls='ws-tab';
+    else if(ch==='　') cls='ws-zsp';
+    else if(ch==='\r') cls='ws-cr';
+    if(cls){
+      if(i>last) parent.appendChild(document.createTextNode(s.slice(last,i)));
+      parent.appendChild(el('span','ws '+cls, ch));
+      last=i+1;
+    }
+  }
+  if(last<s.length) parent.appendChild(document.createTextNode(s.slice(last)));
+}
+function appendRuns(parent, text, arr, s, e){
+  /* text[s..e) を arr のスタイル区間ごとに span/テキストノードで追加 */
+  if(!arr){ appendVis(parent, text.slice(s,e)); return; }
+  let i=s;
+  while(i<e){
+    const st=arr[i]; let j=i+1;
+    while(j<e && arr[j]===st) j++;
+    const seg = text.slice(i,j);
+    if(!st) appendVis(parent, seg);
+    else{
+      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':''));
+      if(st!==SEARCH && st!==SEARCH_CUR) sp.style.background = st.color;
+      appendVis(sp, seg);
+      parent.appendChild(sp);
+    }
+    i=j;
+  }
+}
+
+function buildTextView(tab, keepScroll){
+  const content = $('#content');
+  const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
+  content.textContent='';
+  const c = prepText(tab);
+  recountTextMarkers(tab);
+  const def = resolvedDef(tab);
+  tab._lnW = Math.max(3, String(c.lines.length).length);
+
+  /* 仮想ヘッダー(4.3)：表示層のみ・sticky */
+  if(tab.mode==='text' && def && def.headers && def.headers.length){
+    const hb = el('div','hdrblock');
+    for(const hrow of def.headers){
+      const r = el('div','hdrrow');
+      r.appendChild(makeLn(tab,''));
+      for(let i=0;i<c.colW.length;i++){
+        const txt = i<hrow.length ? String(hrow[i]) : '';
+        const cellw = cellOuterW(tab,c,i);
+        const s = el('span','hcell',txt);
+        s.style.width = `calc(${cellw}ch + ${tab.style==='excel'?9:0}px)`;
+        r.appendChild(s);
+      }
+      hb.appendChild(r);
+    }
+    content.appendChild(hb);
+  }
+  const rowsDiv = el('div'); rowsDiv.id='rows';
+  content.appendChild(rowsDiv);
+  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  content.appendChild(sent);
+
+  tab.renderedText = 0;
+  const target = Math.max(CHUNK_TEXT, Math.min(tab._keepTextRows||0, c.lines.length));
+  while(tab.renderedText < Math.min(target, c.lines.length)) appendTextRows(tab, CHUNK_TEXT);
+
+  setupSentinel(()=>{ if(tab.renderedText < c.lines.length){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
+  if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
+}
+function cellOuterW(tab,c,i){
+  /* 桁揃えはセル幅=値幅+区切り最大幅+区切り後間隔（最終列は値幅のみ）。
+     グリッドは値幅+区切り後間隔(＋CSS padding) */
+  const gap = +settings.delimGap||0;
+  if(tab.style==='excel') return c.colW[i]+gap;
+  const dw = i<c.colW.length-1 ? (c.dW[i]||0)+gap : 0;
+  return c.colW[i]+dw;
+}
+function makeLn(tab, text){
+  const s = el('span','ln', text);
+  s.style.width = (tab._lnW+2)+'ch';
+  return s;
+}
+function appendTextRows(tab, n){
+  const c = tab._cache;
+  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const frag = document.createDocumentFragment();
+  const end = Math.min(tab.renderedText+n, c.lines.length);
+  for(let li=tab.renderedText; li<end; li++) frag.appendChild(buildTextRow(tab, li));
+  rowsDiv.appendChild(frag);
+  tab.renderedText = end;
+  tab._keepTextRows = end;
+  updateStatus();
+}
+function buildTextRow(tab, li){
+  const c = tab._cache;
+  const line = c.lines[li], cells = c.rows[li];
+  const row = el('div','trow'); row.dataset.l = li;
+  /* 行マーカー(4.4) */
+  const lineMk = tab.markers.find(m=>m.enabled&&m.type==='line'&&parseNumSpec(m.value).test(li+1));
+  if(lineMk) row.style.background = lineMk.color;
+  const colMks = tab.markers.filter(m=>m.enabled&&m.type==='col');
+  row.appendChild(makeLn(tab, String(li+1)));
+  const arr = styleArrForLine(tab, li, line.length);
+  const ds = c.rowDelims[li];
+  let off=0;
+  for(let i=0;i<cells.length;i++){
+    const v = cells[i], vs=off, ve=off+v.length;
+    const dl = i<cells.length-1 ? ds[i] : null;
+    const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
+    if(tab.style==='excel'){
+      const cell = el('span','xcell');
+      cell.style.width = `calc(${cellOuterW(tab,c,i)||1}ch + 9px)`;
+      if(colMk) cell.style.background = colMk.color;
+      appendRuns(cell, line, arr, vs, ve);
+      row.appendChild(cell);
+    }else{
+      const cell = el('span','cell');
+      if(colMk) cell.style.background = colMk.color;
+      const vsp = el('span','v');
+      vsp.style.minWidth = (c.colW[i]||1)+'ch';
+      appendRuns(vsp, line, arr, vs, ve);
+      cell.appendChild(vsp);
+      if(dl!=null){
+        const dsp = el('span','dl');
+        dsp.style.minWidth = (c.dW[i]||0)+'ch';   // 区切り幅が行ごとに違っても揃える
+        appendRuns(dsp, line, arr, ve, ve+dl.length);
+        cell.appendChild(dsp);
+      }
+      row.appendChild(cell);
+    }
+    off = ve + (dl!=null ? dl.length : 0);
+  }
+  return row;
+}
+function refreshRenderedTextRows(tab){
+  /* 描画済み行のみ再構築（マーカー/検索変更時） */
+  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rows = rowsDiv.children;
+  for(let k=0;k<rows.length;k++){
+    const li = +rows[k].dataset.l;
+    rowsDiv.replaceChild(buildTextRow(tab, li), rows[k]);
+  }
+}
+function ensureTextRows(tab, upto){
+  while(tab.renderedText < upto && tab.renderedText < tab._cache.lines.length)
+    appendTextRows(tab, Math.max(CHUNK_TEXT, upto-tab.renderedText));
+}
+
+/* =====================================================================
+ * バイナリモード (5章)
+ * =================================================================== */
+function decState(tab){
+  const enc = resolvedEnc(tab);
+  if(!tab._dec || tab._dec.enc!==enc){
+    tab._dec = { enc, pos:0, runStart:0,
+      types:new Uint8Array(tab.bytes.length),   // 0:不正/未確定 1:先頭 2:継続
+      chars:new Map(),
+      td: enc==='ascii' ? null : new TextDecoder(enc) };
+  }
+  return tab._dec;
+}
+/* 増分デコード(5.3実装注記)：1バイトずつ stream で流し込み文字確定位置を検出 */
+function extendDecodeMap(tab, upto){
+  const st = decState(tab), b = tab.bytes;
+  upto = Math.min(upto, b.length);
+  if(st.pos>=upto) return;
+  if(!st.td){ /* ASCII 自前実装(2章注記) */
+    for(let i=st.pos;i<upto;i++){
+      const c=b[i];
+      if(c>=0x20&&c<=0x7E){ st.types[i]=1; st.chars.set(i,String.fromCharCode(c)); }
+    }
+    st.pos=upto; return;
+  }
+  for(let i=st.pos;i<upto;i++){
+    const out = st.td.decode(b.subarray(i,i+1), {stream:true});
+    if(out.length){
+      const clean = out.replace(/�/g,'');
+      if(clean){
+        st.types[st.runStart]=1; st.chars.set(st.runStart, clean);
+        for(let j=st.runStart+1;j<=i;j++) st.types[j]=2;
+      } /* 全て不正 → types=0 のまま */
+      st.runStart=i+1;
+    }
+  }
+  st.pos=upto;
+  if(upto===b.length){ try{st.td.decode();}catch(e){} st.runStart=upto; }
+}
+function binCharFor(tab, i){
+  /* 戻り値: {ch, cont, w} セル表示文字と桁数 */
+  const st = tab._dec;
+  const t = st.types[i];
+  if(t===2) return {ch: settings.contDot?'·':' ', cont:true, w:1};
+  if(t!==1) return {ch:'.', cont:false, w:1};
+  let s = st.chars.get(i)||'.';
+  /* 制御文字は '.' 表示(5.3) */
+  let vis='';
+  for(const c of s){ const cp=c.codePointAt(0); if(cp>=0x20 && cp!==0x7F) vis+=c; }
+  if(!vis) return {ch:'.', cont:false, w:1};
+  const w = Math.min(2, strW(vis));
+  if(strW(vis)>2) vis = vis[0]; // 超幅は先頭文字のみ（レア）
+  return {ch:vis, cont:false, w};
+}
+
+/* --- バイナリのマーク(5.4)/検索：バッファ全体対象の一致マップ --- */
+function parseHexPattern(s){
+  const t = s.replace(/\s+/g,'').toLowerCase();
+  if(!t || t.length%2 || /[^0-9a-f]/.test(t)) return null;
+  const a=[]; for(let i=0;i<t.length;i+=2) a.push(parseInt(t.substr(i,2),16));
+  return a;
+}
+function findPattern(bytes, pat){
+  const starts=[]; const n=bytes.length, m=pat.length;
+  outer:
+  for(let i=0;i+m<=n;i++){
+    for(let j=0;j<m;j++) if(bytes[i+j]!==pat[j]) continue outer;
+    starts.push(i); i+=m-1;   // 重複なしカウント
+  }
+  return starts;
+}
+function byteHist(tab){
+  if(!tab._hist){
+    const h = new Uint32Array(256), b = tab.bytes;
+    for(let i=0;i<b.length;i++) h[b[i]]++;
+    tab._hist = h;
+  }
+  return tab._hist;
+}
+function rebuildBinMarkerMap(tab){
+  const n = tab.bytes.length;
+  if(!tab._mkMap || tab._mkMap.length!==n) tab._mkMap = new Uint8Array(n);
+  else tab._mkMap.fill(0);
+  tab.binMarkers.forEach((m,idx)=>{
+    m.count = 0;
+    const pat = parseHexPattern(m.value); if(!pat) return;
+    /* 1バイトパターンのOFF時はヒストグラムで件数のみ算出（プリセット多数でも全走査しない） */
+    if(pat.length===1 && !m.enabled){ m.count = byteHist(tab)[pat[0]]; return; }
+    const starts = findPattern(tab.bytes, pat);
+    m.count = starts.length;
+    if(!m.enabled) return;
+    for(const s of starts) for(let j=s;j<s+pat.length;j++) if(!tab._mkMap[j]) tab._mkMap[j]=idx+1; // 先勝ち
+  });
+}
+function rebuildBinSearch(tab){
+  tab.binHits=[]; tab.binCurHit=-1; tab.binSearchLen=0;
+  const pat = parseHexPattern(tab.binQuery);
+  if(pat){ tab.binHits = findPattern(tab.bytes, pat); tab.binSearchLen = pat.length; }
+  updateSearchCount();
+}
+function gotoBinHit(dir){
+  const tab=curTab(); if(!tab||!tab.binHits.length) return;
+  tab.binCurHit = (tab.binCurHit + dir + tab.binHits.length) % tab.binHits.length;
+  const off = tab.binHits[tab.binCurHit];
+  const need = off + tab.binSearchLen;
+  if(need > tab.binLimit){
+    const newLimit = Math.min(tab.bytes.length, Math.ceil(need/BIN_STEP)*BIN_STEP);
+    if(newLimit - tab.binLimit > BIN_JUMP_CONFIRM &&
+       !confirm(`該当位置まで表示を ${fmtSize(newLimit)} に拡張します。行数が多くなり動作が重くなる可能性があります。続行しますか？`)){
+      updateSearchCount(); return;
+    }
+    tab.binLimit = newLimit;
+  }
+  const row = Math.floor(off/16);
+  ensureBinRows(tab, row+1);
+  refreshRenderedBinRows(tab);
+  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  if(rowEl) rowEl.scrollIntoView({block:'center'});
+  updateSearchCount();
+}
+
+/* --- バイナリ描画 --- */
+function buildBinView(tab, keepScroll){
+  const content = $('#content');
+  const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
+  content.textContent='';
+  rebuildBinMarkerMap(tab);
+
+  /* ルーラー */
+  const ruler = el('div','bruler');
+  ruler.appendChild(el('span','boff','OFFSET  '));
+  let rh='';
+  for(let j=0;j<16;j++){ rh += j.toString(16).toUpperCase().padStart(2,'0'); rh += (j===7?'  ':' '); }
+  ruler.appendChild(el('span','bhex',rh));
+  ruler.appendChild(el('span',null,`デコード: ${encLabel(resolvedEnc(tab))}`));
+  content.appendChild(ruler);
+
+  const rowsDiv = el('div'); rowsDiv.id='rows';
+  content.appendChild(rowsDiv);
+  const moreWrap = el('div'); moreWrap.id='moreWrap';
+  content.appendChild(moreWrap);
+  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  content.appendChild(sent);
+
+  tab.renderedBin = 0;
+  const totalRows = Math.ceil(tab.binLimit/16);
+  const target = Math.max(CHUNK_BIN, Math.min(tab._keepBinRows||0, totalRows));
+  while(tab.renderedBin < Math.min(target, totalRows)) appendBinRows(tab, CHUNK_BIN);
+
+  setupSentinel(()=>{
+    const tr = Math.ceil(tab.binLimit/16);
+    if(tab.renderedBin < tr){ appendBinRows(tab, CHUNK_BIN); return true; }
+    updateMoreButton(tab); return false;
+  });
+  updateMoreButton(tab);
+  if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
+}
+function updateMoreButton(tab){
+  const w = $('#moreWrap'); if(!w) return;
+  w.textContent='';
+  const tr = Math.ceil(tab.binLimit/16);
+  if(tab.renderedBin>=tr && tab.binLimit < tab.bytes.length){
+    const b = el('button','more',
+      `さらに表示 (+${fmtSize(Math.min(BIN_STEP, tab.bytes.length-tab.binLimit))} / 残り ${fmtSize(tab.bytes.length-tab.binLimit)})`);
+    b.onclick = ()=>{
+      tab.binLimit = Math.min(tab.bytes.length, tab.binLimit+BIN_STEP);
+      appendBinRows(tab, CHUNK_BIN);
+      updateMoreButton(tab); updateStatus();
+    };
+    w.appendChild(b);
+  }
+}
+function appendBinRows(tab, n){
+  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const totalRows = Math.ceil(tab.binLimit/16);
+  const end = Math.min(tab.renderedBin+n, totalRows);
+  extendDecodeMap(tab, Math.min(end*16, tab.bytes.length));
+  const frag = document.createDocumentFragment();
+  for(let r=tab.renderedBin; r<end; r++) frag.appendChild(buildBinRow(tab, r));
+  rowsDiv.appendChild(frag);
+  tab.renderedBin = end;
+  tab._keepBinRows = end;
+  updateStatus();
+}
+const BSEL = {t:'bsel'};  // クリック選択（対応ハイライト）用番兵
+function binStyleAt(tab, i){
+  /* 選択 > 検索(現在>ヒット) > マーカー の順で前面 */
+  if(tab.selA!=null && i>=tab.selA && i<tab.selB) return BSEL;
+  if(tab.binSearchLen && tab.binCurHit>=0){
+    const c = tab.binHits[tab.binCurHit];
+    if(i>=c && i<c+tab.binSearchLen) return SEARCH_CUR;
+  }
+  if(tab.binSearchLen && tab._binHitSet && tab._binHitSet(i)) return SEARCH;
+  const mi = tab._mkMap ? tab._mkMap[i] : 0;
+  return mi ? tab.binMarkers[mi-1] : null;
+}
+function binRowStrings(tab, r){
+  /* 1行分のHEX/デコード文字列と、各バイト→文字列内位置の対応表 */
+  const b = tab.bytes;
+  const s = r*16, e = Math.min(s+16, Math.min(b.length, tab.binLimit));
+  /* HEX（1バイト=2桁+空白、8バイト目の後に追加空白） */
+  let hex=''; const hpos=[];
+  for(let j=0;j<16;j++){
+    hpos[j]=hex.length;
+    if(s+j<e) hex += b[s+j].toString(16).toUpperCase().padStart(2,'0');
+    else hex += '  ';
+    hex += (j===7?'  ':' ');
+  }
+  /* デコード（各バイト=2桁分。全角は1文字で2桁、半角は+空白） */
+  let chs=''; const cpos=[];
+  for(let j=0;j<16;j++){
+    cpos[j]=chs.length;
+    if(s+j<e){
+      const d = binCharFor(tab, s+j);
+      chs += d.ch + (d.w===1?' ':'');
+      if(d.cont) cpos[j] = {p:cpos[j], cont:true};
+    } else chs+='  ';
+  }
+  cpos[16]=chs.length; hpos[16]=hex.length;
+  return {s, e, hex, hpos, chs, cpos};
+}
+function buildBinRow(tab, r){
+  const {s, e, hex, hpos, chs, cpos} = binRowStrings(tab, r);
+  const row = el('div','brow'); row.dataset.r = r;
+  row.appendChild(el('span','boff', s.toString(16).toUpperCase().padStart(8,'0')));
+  const posOf = p => (typeof p==='object'?p.p:p);
+
+  /* バイト単位のスタイルを連続区間にまとめて span 化 */
+  const hexSp = el('span','bhex'), chSp = el('span','bch');
+  let j=0;
+  while(j<16){
+    const idx=s+j;
+    const st = idx<e ? binStyleAt(tab, idx) : null;
+    let k=j+1;
+    while(k<16 && s+k<e && binStyleAt(tab,s+k)===st) k++;
+    if(s+j>=e) k=16;
+    const hseg = hex.slice(hpos[j], k<16?hpos[k]:hex.length);
+    const cseg = chs.slice(posOf(cpos[j]), k<16?posOf(cpos[k]):chs.length);
+    if(!st){
+      hexSp.appendChild(document.createTextNode(hseg));
+      /* 継続セルは淡色表示：無スタイル区間でも継続セルだけ色を変える */
+      appendContAware(chSp, tab, s, j, Math.min(k, Math.ceil((e-s))), chs, cpos, e);
+      if(k>Math.ceil(e-s)) chSp.appendChild(document.createTextNode(chs.slice(posOf(cpos[Math.max(j,Math.ceil(e-s))])||chs.length)));
+    }else{
+      const cls = st===BSEL?'bsel':(st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':''));
+      const h2 = el('span', cls, hseg); const c2 = el('span', cls, cseg);
+      if(!cls){ h2.style.background=st.color; c2.style.background=st.color; }
+      hexSp.appendChild(h2); chSp.appendChild(c2);
+    }
+    j=k;
+  }
+  row.appendChild(hexSp); row.appendChild(chSp);
+  return row;
+}
+function appendContAware(parent, tab, s, j0, j1, chs, cpos, e){
+  /* 無スタイル区間のデコード文字列を、継続セルのみ .cont で淡色化して追加 */
+  const posOf = p => (typeof p==='object'?p.p:p);
+  let j=j0;
+  while(j<j1 && s+j<e){
+    const isCont = typeof cpos[j]==='object';
+    let k=j+1;
+    while(k<j1 && s+k<e && (typeof cpos[k]==='object')===isCont) k++;
+    const seg = chs.slice(posOf(cpos[j]), posOf(cpos[k])!==undefined?posOf(cpos[k]):chs.length);
+    if(isCont) parent.appendChild(el('span','cont',seg));
+    else parent.appendChild(document.createTextNode(seg));
+    j=k;
+  }
+}
+function refreshRenderedBinRows(tab){
+  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  makeBinHitSet(tab);
+  const rows = rowsDiv.children;
+  for(let k=0;k<rows.length;k++){
+    const r = +rows[k].dataset.r;
+    rowsDiv.replaceChild(buildBinRow(tab, r), rows[k]);
+  }
+}
+function ensureBinRows(tab, upto){
+  while(tab.renderedBin < upto && tab.renderedBin < Math.ceil(tab.binLimit/16))
+    appendBinRows(tab, Math.max(CHUNK_BIN, upto-tab.renderedBin));
+}
+function makeBinHitSet(tab){
+  /* 検索ヒットのバイト判定（二分探索） */
+  const hits = tab.binHits, len = tab.binSearchLen;
+  if(!hits.length || !len){ tab._binHitSet=null; return; }
+  tab._binHitSet = i=>{
+    let lo=0, hi=hits.length-1, best=-1;
+    while(lo<=hi){ const mid=(lo+hi)>>1; if(hits[mid]<=i){best=mid;lo=mid+1;}else hi=mid-1; }
+    return best>=0 && i < hits[best]+len;
+  };
+}
+
+/* --- クリック選択：HEX側⇔デコード側の対応ハイライト --- */
+function caretOffsetIn(elm, x, y){
+  let node, offset;
+  if(document.caretRangeFromPoint){
+    const r = document.caretRangeFromPoint(x,y); if(!r) return null;
+    node = r.startContainer; offset = r.startOffset;
+  }else if(document.caretPositionFromPoint){
+    const p = document.caretPositionFromPoint(x,y); if(!p) return null;
+    node = p.offsetNode; offset = p.offset;
+  }else return null;
+  if(!elm.contains(node)) return null;
+  const rng = document.createRange();
+  rng.selectNodeContents(elm); rng.setEnd(node, offset);
+  return rng.toString().length;
+}
+function binSelectByte(tab, i){
+  /* マルチバイト文字なら文字全体のバイト範囲に拡張して選択 */
+  const st = tab._dec;
+  let a=i, b=i+1;
+  if(st && i<st.pos){
+    while(a>0 && st.types[a]===2) a--;
+    b=a+1; while(b<st.pos && st.types[b]===2) b++;
+  }
+  if(tab.selA===a && tab.selB===b){ clearBinSel(tab); return; } // 再クリックで解除
+  const oa=tab.selA, ob=tab.selB;
+  tab.selA=a; tab.selB=b;
+  refreshBinRange(tab, oa, ob);
+  refreshBinRange(tab, a, b);
+  updateStatus();
+}
+function clearBinSel(tab){
+  if(tab.selA==null) return;
+  const a=tab.selA, b=tab.selB;
+  tab.selA=tab.selB=null;
+  refreshBinRange(tab, a, b);
+  updateStatus();
+}
+function refreshBinRange(tab, a, b){
+  if(a==null) return;
+  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  for(let r=Math.floor(a/16); r<=Math.floor((b-1)/16); r++){
+    const old = rowsDiv.querySelector(`[data-r="${r}"]`);
+    if(old) rowsDiv.replaceChild(buildBinRow(tab, r), old);
+  }
+}
+function initBinSelect(){
+  $('#content').addEventListener('click', e=>{
+    const t = curTab(); if(!t || t.mode!=='bin') return;
+    const row = e.target.closest('.brow');
+    if(!row){ if(!e.target.closest('.more')) clearBinSel(t); return; }
+    const pane = e.target.closest('.bhex') ? 'hex' : (e.target.closest('.bch') ? 'ch' : null);
+    if(!pane){ clearBinSel(t); return; }
+    const paneEl = pane==='hex' ? row.children[1] : row.children[2];
+    const off = caretOffsetIn(paneEl, e.clientX, e.clientY);
+    if(off==null) return;
+    const r = +row.dataset.r;
+    const {s, e:end, hpos, cpos} = binRowStrings(t, r);
+    const posOf = p => (typeof p==='object'?p.p:p);
+    const arr = pane==='hex' ? hpos : cpos;
+    let j=0;
+    for(let k=0;k<16;k++) if(posOf(arr[k])<=off) j=k;
+    if(s+j>=end){ clearBinSel(t); return; }
+    binSelectByte(t, s+j);
+  });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){
+      /* ダイアログが開いていればそちらを閉じる */
+      if($('#helpBack').classList.contains('show')){ $('#helpBack').classList.remove('show'); return; }
+      if($('#modalBack').classList.contains('show')){ $('#modalBack').classList.remove('show'); return; }
+      const t=curTab(); if(t) clearBinSel(t);
+    }
+  });
+}
+
+/* =====================================================================
+ * サイドパネル（マーカー管理）
+ * =================================================================== */
+function renderSide(){
+  const tab = curTab();
+  const form = $('#mkForm'), list = $('#mkList');
+  form.textContent=''; list.textContent='';
+  if(!tab){ $('#sideTitle').textContent='マーカー'; return; }
+  const isBin = tab.mode==='bin';
+  $('#sideTitle').textContent = isBin ? 'マーク（バイト列パターン）' : 'マーカー（テキスト）';
+
+  if(isBin){
+    const r1 = el('div','row');
+    const inp = el('input'); inp.type='text'; inp.placeholder='16進 例: 0D 0A';
+    const btn = el('button',null,'追加');
+    r1.appendChild(inp); r1.appendChild(btn); form.appendChild(r1);
+    const note = el('div',null,'空白・大文字小文字は任意（内部で正規化）');
+    note.style.cssText='font-size:11px;color:var(--sub)';
+    form.appendChild(note);
+    const add = ()=>{
+      const pat = parseHexPattern(inp.value);
+      if(!pat){ toast('16進バイト列を入力してください（例: 0D 0A）'); return; }
+      const norm = pat.map(x=>x.toString(16).toUpperCase().padStart(2,'0')).join(' ');
+      const ex = tab.binMarkers.find(m=>m.value===norm);
+      if(ex){ ex.enabled=true; inp.value=''; onBinMarkersChanged(tab); toast('既存のマークを有効にしました'); return; }
+      tab.binMarkers.push({id:++mkSeq, value:norm,
+        color:PALETTE[tab.binMarkers.length%PALETTE.length], enabled:true, count:0});
+      inp.value='';
+      onBinMarkersChanged(tab);
+    };
+    btn.onclick=add; inp.onkeydown=e=>{ if(e.key==='Enter')add(); };
+    /* ユーザー登録分を上に、制御コード候補は折りたたみで下に */
+    for(const m of tab.binMarkers.filter(m=>!m.preset)) list.appendChild(markerRow(tab, m, true));
+    const presets = tab.binMarkers.filter(m=>m.preset);
+    if(presets.length){
+      const det = document.createElement('details');
+      const onCount = presets.filter(m=>m.enabled).length;
+      det.appendChild(el('summary', null, `制御コード候補 (${presets.length}件${onCount?` / ${onCount} ON`:''})`));
+      if(onCount) det.open = true;
+      for(const m of presets) det.appendChild(markerRow(tab, m, true));
+      list.appendChild(det);
+    }
+  }else{
+    const r1 = el('div','row');
+    const sel = el('select');
+    [['string','文字列'],['line','行番号'],['col','列番号']].forEach(([v,l])=>{ const o=el('option',null,l); o.value=v; sel.appendChild(o); });
+    const cs = el('label','chk'); const csi = el('input'); csi.type='checkbox'; csi.checked=true;
+    cs.appendChild(csi); cs.appendChild(document.createTextNode('Aa')); cs.title='大文字小文字を区別';
+    const rx = el('button',null,'.*'); rx.title='正規表現でマークする（クリックで切替）';
+    rx.style.cssText='font-family:var(--mono);padding:1px 7px';
+    r1.appendChild(sel); r1.appendChild(cs); r1.appendChild(rx); form.appendChild(r1);
+    const r2 = el('div','row');
+    const inp = el('input'); inp.type='text'; inp.placeholder='文字列';
+    const btn = el('button',null,'追加');
+    r2.appendChild(inp); r2.appendChild(btn); form.appendChild(r2);
+    let rxOn = false;
+    const syncPh = ()=>{
+      inp.placeholder = sel.value==='string' ? (rxOn?'正規表現 例: \\d{8}':'文字列')
+                      : (sel.value==='line'?'行番号 例: 3,10-20':'列番号 例: 2,5-7');
+      cs.style.visibility = rx.style.visibility = sel.value==='string'?'visible':'hidden';
+    };
+    rx.onclick = ()=>{ rxOn=!rxOn; rx.classList.toggle('on', rxOn); syncPh(); };
+    sel.onchange = syncPh;
+    const add = ()=>{
+      const v = inp.value; if(!v){ toast('値を入力してください'); return; }
+      if(sel.value!=='string' && parseNumSpec(v).empty){ toast('数値または範囲（例: 3,10-20）を入力してください'); return; }
+      const isRx = sel.value==='string' && rxOn;
+      if(isRx){ try{ new RegExp(v); }catch(err){ toast('正規表現が不正です: '+err.message); return; } }
+      tab.markers.push({id:++mkSeq, type:sel.value, value:v, caseSensitive:csi.checked, regex:isRx,
+        color:PALETTE[tab.markers.length%PALETTE.length], enabled:true, count:0});
+      inp.value='';
+      onTextMarkersChanged(tab);
+    };
+    btn.onclick=add; inp.onkeydown=e=>{ if(e.key==='Enter')add(); };
+    for(const m of tab.markers) list.appendChild(markerRow(tab, m, false));
+  }
+}
+function markerRow(tab, m, isBin){
+  const d = el('div','mk'+(m.enabled?'':' off'));
+  const en = el('input'); en.type='checkbox'; en.checked=m.enabled; en.title='有効/無効';
+  en.onchange = ()=>{ m.enabled=en.checked; isBin?onBinMarkersChanged(tab):onTextMarkersChanged(tab); };
+  const col = el('input'); col.type='color'; col.value=toHexColor(m.color); col.title='色';
+  col.oninput = ()=>{ m.color=col.value; isBin?onBinMarkersChanged(tab):onTextMarkersChanged(tab); };
+  const kind = el('span','kind', isBin?(m.preset?'CTRL':'HEX')
+    :(m.type==='string'?((m.regex?'正規':'文字')+(m.caseSensitive?'Aa':'')):(m.type==='line'?'行':'列')));
+  const val = el('span','val', m.label ? `${m.label}  ${m.value}` : m.value); val.title=m.value;
+  const cnt = el('span','cnt', m.count==null?'無効':m.count+'件');
+  if(m.count==null){ cnt.style.color='#c00'; cnt.title='正規表現エラー: '+(m._reErr||''); }
+  const x = el('button','x','✕'); x.title='登録解除';
+  x.onclick = ()=>{
+    const a = isBin?tab.binMarkers:tab.markers;
+    a.splice(a.indexOf(m),1);
+    isBin?onBinMarkersChanged(tab):onTextMarkersChanged(tab);
+  };
+  [en,col,kind,val,cnt,x].forEach(e=>d.appendChild(e));
+  return d;
+}
+function toHexColor(c){
+  if(/^#[0-9a-f]{6}$/i.test(c)) return c;
+  const x = el('div'); x.style.color=c; document.body.appendChild(x);
+  const m = getComputedStyle(x).color.match(/\d+/g); document.body.removeChild(x);
+  return m ? '#'+m.slice(0,3).map(v=>(+v).toString(16).padStart(2,'0')).join('') : '#ffe066';
+}
+function onTextMarkersChanged(tab){
+  recountTextMarkers(tab);
+  refreshRenderedTextRows(tab);
+  renderSide();
+}
+function onBinMarkersChanged(tab){
+  rebuildBinMarkerMap(tab);
+  refreshRenderedBinRows(tab);
+  renderSide();
+}
+
+/* =====================================================================
+ * ツールバー / ステータスバー
+ * =================================================================== */
+function initToolbar(){
+  const se = $('#selEnc');
+  const oa = el('option',null,'自動判定'); oa.value='auto'; se.appendChild(oa);
+  for(const [v,l] of ENCODINGS){ const o=el('option',null,l); o.value=v; se.appendChild(o); }
+
+  $('#btnOpen').onclick = ()=>$('#fileInput').click();
+  $('#fileInput').onchange = e=>{ openFiles([...e.target.files]); e.target.value=''; };
+
+  $('#btnText').onclick = ()=>setMode('text');
+  $('#btnBin').onclick  = ()=>setMode('bin');
+  se.onchange = ()=>{ const t=curTab(); if(!t)return; t.encSel=se.value; t._cache={}; t._dec=null;
+    rebuildTextSearch(t); renderAll(true); };
+  $('#delimAdd').onchange = ()=>{
+    const t=curTab(); if(!t)return;
+    const v=$('#delimAdd').value;
+    if(!v) return;
+    /* 任意区切り文字は登録して選択肢に保持し、即座に有効化する(4.1) */
+    if(!DELIM_PRESETS.some(p=>p[0]===v) && !customDelims.includes(v)){
+      customDelims.push(v); LS.set('ifv_delims', customDelims);
+    }
+    if(!t.delims.includes(v)) t.delims.push(v);
+    $('#delimAdd').value='';
+    t._cache.cellsKey=null; renderAll(true);
+  };
+  $('#selNl').onchange = ()=>{
+    const t=curTab(); if(!t)return;
+    t.nlSel = $('#selNl').value;
+    t._cache.linesKey=null;
+    rebuildTextSearch(t);
+    renderAll(true);
+  };
+  $('#btnExcel').onclick = ()=>setStyle('excel');
+  $('#btnEm').onclick    = ()=>setStyle('em');
+  $('#selGap').onchange = ()=>{
+    let g = Math.round(+$('#selGap').value||0);
+    g = Math.max(0, Math.min(16, g));
+    $('#selGap').value = g;
+    settings.delimGap = g; LS.set('ifv_settings', settings);
+    applyDisplaySettings();
+    const t=curTab();
+    if(t && t.mode==='text') renderAll(true); // 列幅・ヘッダー幅の再計算（グリッド/桁揃え共通）
+  };
+  $('#btnWs').onclick = ()=>{
+    settings.showWs = !settings.showWs; LS.set('ifv_settings', settings);
+    const t=curTab();
+    if(t && t.mode==='text') renderAll(true); else updateToolbar();
+  };
+  const zoomStep = d=>{
+    let i = ZOOMS.indexOf(settings.zoom); if(i<0) i = ZOOMS.indexOf(100);
+    i = Math.max(0, Math.min(ZOOMS.length-1, i+d));
+    settings.zoom = ZOOMS[i]; LS.set('ifv_settings', settings); applyDisplaySettings();
+  };
+  $('#zoomIn').onclick  = ()=>zoomStep(1);
+  $('#zoomOut').onclick = ()=>zoomStep(-1);
+  $('#zoomReset').onclick = ()=>{ settings.zoom=100; LS.set('ifv_settings', settings); applyDisplaySettings(); };
+  $('#selDef').onchange = ()=>{
+    const t=curTab(); if(!t)return;
+    const v=$('#selDef').value;
+    t.defSel = (v==='auto'||v==='none') ? v : +v;
+    t._cache.cellsKey=null;
+    renderAll(true);
+  };
+
+  let debounce=null;
+  $('#searchBox').oninput = ()=>{
+    clearTimeout(debounce);
+    debounce = setTimeout(()=>{
+      const t=curTab(); if(!t)return;
+      if(t.mode==='text'){ t.query=$('#searchBox').value; rebuildTextSearch(t); refreshRenderedTextRows(t); }
+      else { t.binQuery=$('#searchBox').value; rebuildBinSearch(t); refreshRenderedBinRows(t); }
+    },250);
+  };
+  $('#searchBox').onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); } };
+  $('#chkCase').onchange = ()=>{ const t=curTab(); if(!t)return;
+    t.queryCase=$('#chkCase').checked; rebuildTextSearch(t); refreshRenderedTextRows(t); };
+  $('#btnRegex').onclick = ()=>{ const t=curTab(); if(!t)return;
+    t.queryRegex = !t.queryRegex;
+    $('#btnRegex').classList.toggle('on', t.queryRegex);
+    $('#searchBox').placeholder = t.queryRegex ? '正規表現' : '文字列';
+    rebuildTextSearch(t); refreshRenderedTextRows(t); };
+  $('#btnNext').onclick = ()=>doSearch(1);
+  $('#btnPrev').onclick = ()=>doSearch(-1);
+
+  $('#btnSide').onclick = ()=>{ $('#side').classList.toggle('hidden'); };
+  $('#btnSettings').onclick = openSettings;
+  $('#btnHelp').onclick = ()=>$('#helpBack').classList.add('show');
+  $('#btnHelpClose').onclick = ()=>$('#helpBack').classList.remove('show');
+  $('#helpBack').onclick = e=>{ if(e.target===$('#helpBack')) $('#helpBack').classList.remove('show'); };
+
+  document.addEventListener('keydown', e=>{
+    if(e.key==='F3'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); }
+    if((e.ctrlKey||e.metaKey)&&e.key==='f'){ e.preventDefault(); $('#searchBox').focus(); $('#searchBox').select(); }
+  });
+}
+function doSearch(dir){
+  const t=curTab(); if(!t)return;
+  if(t.mode==='text'){
+    if(t.query!==$('#searchBox').value){ t.query=$('#searchBox').value; rebuildTextSearch(t); }
+    gotoTextHit(dir); refreshRenderedTextRows(t);
+    const h=t.hits[t.curHit]; if(h){ const row=$('#content').querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
+  }else{
+    if(t.binQuery!==$('#searchBox').value){ t.binQuery=$('#searchBox').value; rebuildBinSearch(t); }
+    gotoBinHit(dir);
+  }
+}
+function setMode(m){
+  const t=curTab(); if(!t||t.mode===m)return;
+  t.mode=m; renderAll();
+}
+function setStyle(s){
+  const t=curTab(); if(!t||t.style===s)return;
+  t.style=s; LS.set('ifv_style',s); renderAll(true);
+}
+function updateToolbar(){
+  const t = curTab();
+  const has = !!t;
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex']
+    .forEach(s=>{ $(s).disabled=!has; });
+  $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
+  if(!has){ $('#searchCount').textContent=''; return; }
+  $('#btnText').classList.toggle('on', t.mode==='text');
+  $('#btnBin').classList.toggle('on', t.mode==='bin');
+  document.querySelectorAll('.text-only').forEach(e=>e.style.display = t.mode==='text'?'':'none');
+  $('#selEnc').value = t.encSel;
+  renderDelimChips(t);
+  $('#selNl').value = t.nlSel||'auto';
+  $('#selGap').value = String(+settings.delimGap||0);
+  $('#btnWs').classList.toggle('on', !!settings.showWs);
+  $('#btnExcel').classList.toggle('on', t.style==='excel');
+  $('#btnEm').classList.toggle('on', t.style==='em');
+  $('#searchBox').placeholder = t.mode==='text' ? (t.queryRegex?'正規表現':'文字列') : '16進 例: 0D 0A';
+  $('#searchBox').value = t.mode==='text'?t.query:t.binQuery;
+  $('#chkCase').checked = t.queryCase;
+  $('#btnRegex').classList.toggle('on', !!t.queryRegex);
+  /* ヘッダー定義セレクト */
+  const sd = $('#selDef'); sd.textContent='';
+  const ai = matchDef(t.name);
+  const o1 = el('option',null, ai>=0?`自動: ${defs[ai].name||defs[ai].match}`:'自動 (一致なし)'); o1.value='auto'; sd.appendChild(o1);
+  const o2 = el('option',null,'なし'); o2.value='none'; sd.appendChild(o2);
+  defs.forEach((d,i)=>{ const o=el('option',null,d.name||d.match); o.value=String(i); sd.appendChild(o); });
+  sd.value = String(t.defSel);
+  updateSearchCount();
+}
+function delimChipLabel(v){
+  if(v===',') return ',';
+  if(v==='\t') return 'Tab';
+  if(v===';') return ';';
+  if(v==='|') return '|';
+  if(v===' ') return '空白';
+  return v;
+}
+function renderDelimChips(tab){
+  /* プリセット + 登録済み任意区切りをチップ表示。クリックで有効/無効（複数同時可） */
+  const box = $('#delimChips'); box.textContent='';
+  const vals = [...DELIM_PRESETS.map(p=>p[0]), ...customDelims];
+  for(const v of tab.delims) if(!vals.includes(v)) vals.push(v);  // 定義由来などの未登録値
+  for(const v of vals){
+    const b = el('button','dchip'+(tab.delims.includes(v)?' on':''), delimChipLabel(v));
+    b.title = tab.delims.includes(v) ? 'クリックで無効化' : 'クリックで有効化';
+    b.onclick = ()=>{
+      const i = tab.delims.indexOf(v);
+      if(i>=0) tab.delims.splice(i,1); else tab.delims.push(v);
+      tab._cache.cellsKey=null; renderAll(true);
+    };
+    if(customDelims.includes(v)){
+      b.title += '／右クリックで登録解除';
+      b.oncontextmenu = e=>{
+        e.preventDefault();
+        customDelims.splice(customDelims.indexOf(v),1); LS.set('ifv_delims', customDelims);
+        tabs.forEach(t=>{
+          const k = t.delims.indexOf(v);
+          if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
+        });
+        renderAll(true);
+        toast(`区切り文字「${v}」を登録解除しました`);
+      };
+    }
+    box.appendChild(b);
+  }
+}
+function applyDisplaySettings(){
+  const css = settings.font==='custom' ? (settings.fontCustom || FONTS.biz.css) : (FONTS[settings.font]||FONTS.biz).css;
+  document.documentElement.style.setProperty('--mono', css);
+  document.documentElement.style.setProperty('--dgap', (+settings.delimGap||0)+'ch');
+  $('#content').style.fontSize = (13*settings.zoom/100).toFixed(1)+'px';
+  $('#zoomReset').textContent = settings.zoom+'%';
+}
+function updateSearchCount(){
+  const t=curTab(); const s=$('#searchCount');
+  const err = !!(t && t.mode==='text' && t.queryError);
+  s.classList.toggle('err', err);
+  $('#searchBox').classList.toggle('err', err);
+  if(!t){ s.textContent=''; return; }
+  if(err){ s.textContent='無効'; s.title='正規表現エラー: '+t.queryError; return; }
+  s.title='';
+  const hits = t.mode==='text'?t.hits:t.binHits;
+  const curI = t.mode==='text'?t.curHit:t.binCurHit;
+  const q = t.mode==='text'?t.query:t.binQuery;
+  s.textContent = q ? `${hits.length?curI+1:0}/${hits.length}` : '';
+}
+function updateStatus(){
+  const t = curTab(); const sb=$('#status');
+  if(!t){ sb.innerHTML='<span>ファイル未読み込み</span>'; return; }
+  const enc = resolvedEnc(t);
+  const items = [
+    `<b>${escText(t.name)}</b>`,
+    `${fmtSize(t.bytes.length)}`,
+    `モード: <b>${t.mode==='text'?'テキスト':'バイナリ'}</b>`,
+    `文字コード: <b>${escText(encLabel(enc))}${t.encSel==='auto'?' (自動)':''}</b>`
+  ];
+  if(t.mode==='text'){
+    const c = t._cache;
+    if(c.lines){
+      const nl=c.nl, kinds=[]; if(nl.crlf)kinds.push('CRLF×'+nl.crlf); if(nl.lf)kinds.push('LF×'+nl.lf); if(nl.cr)kinds.push('CR×'+nl.cr);
+      items.push(`${c.lines.length.toLocaleString()} 行 / ${c.colW?c.colW.length:0} 列`);
+      const nlHead = (t.nlSel&&t.nlSel!=='auto') ? `<b>${t.nlSel.toUpperCase()} 指定</b> / 検出: ` : '';
+      items.push(`改行: ${nlHead}${kinds.length?kinds.join(' '):'なし'}${kinds.length>1?' (混在)':''} / 末尾改行: ${c.trailingNL?'あり':'なし'}`);
+    }
+    const def = resolvedDef(t);
+    if(def) items.push(`定義: <b>${escText(def.name||def.match)}</b>`);
+  }else{
+    items.push(`表示: 先頭 ${fmtSize(Math.min(t.binLimit,t.bytes.length))} / ${fmtSize(t.bytes.length)}`);
+    if(t.selA!=null){
+      const bs = [...t.bytes.slice(t.selA, t.selB)].map(x=>x.toString(16).toUpperCase().padStart(2,'0')).join(' ');
+      const st = t._dec;
+      const ch = (st && st.types[t.selA]===1) ? (st.chars.get(t.selA)||'') : '';
+      items.push(`選択: <b>0x${t.selA.toString(16).toUpperCase().padStart(8,'0')}</b> (${t.selA}) [${bs}]${ch?` 「${escText(ch)}」`:''} — Escで解除`);
+    }
+  }
+  items.push('🔒 読み取り専用');
+  sb.innerHTML = items.map(x=>`<span>${x}</span>`).join('');
+}
+function escText(s){ const d=el('div'); d.textContent=s; return d.innerHTML; }
+
+/* =====================================================================
+ * 設定モーダル
+ * =================================================================== */
+const SAMPLE_DEFS = [{
+  name:'受注IF', match:'IF_ORDER_*', delimiter:',', encoding:'shift_jis',
+  headers:[['顧客ID','受注日','金額','区分'],['必須','YYYYMMDD','整数','1=通常/2=返品']]
+}];
+function openSettings(){
+  $('#lsWarn').classList.toggle('hiddenCtl', LS.ok);
+  $('#chkContDot').checked = settings.contDot;
+  $('#selFont').value = FONTS[settings.font] ? settings.font : 'biz';
+  $('#fontCustom').value = settings.fontCustom||'';
+  $('#fontCustom').classList.toggle('hiddenCtl', settings.font!=='custom');
+  renderDelimList();
+  $('#defsTa').value = JSON.stringify(defs, null, 2);
+  $('#defsErr').textContent='';
+  $('#modalBack').classList.add('show');
+}
+function renderDelimList(){
+  const box = $('#delimList'); box.textContent='';
+  if(!customDelims.length){
+    const n = el('span',null,'（なし — ツールバーの「任意を追加…」から登録できます）');
+    n.style.cssText='color:var(--sub);font-size:12px'; box.appendChild(n); return;
+  }
+  customDelims.forEach((v,i)=>{
+    const chip = el('span','chip', `「${v}」`);
+    const x = el('button','x','✕'); x.title='登録解除';
+    x.onclick = ()=>{
+      customDelims.splice(i,1); LS.set('ifv_delims', customDelims);
+      /* 使用中のタブからも外して再パース */
+      tabs.forEach(t=>{
+        const k = t.delims.indexOf(v);
+        if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
+      });
+      renderDelimList(); renderAll(true);
+    };
+    chip.appendChild(x); box.appendChild(chip);
+  });
+}
+function initSettings(){
+  const sf = $('#selFont');
+  for(const k of Object.keys(FONTS)){ const o=el('option',null,FONTS[k].label); o.value=k; sf.appendChild(o); }
+  sf.onchange = ()=>$('#fontCustom').classList.toggle('hiddenCtl', sf.value!=='custom');
+  $('#btnModalClose').onclick = ()=>$('#modalBack').classList.remove('show');
+  $('#modalBack').onclick = e=>{ if(e.target===$('#modalBack')) $('#modalBack').classList.remove('show'); };
+  $('#btnDefsSample').onclick = ()=>{ $('#defsTa').value = JSON.stringify(SAMPLE_DEFS,null,2); };
+  $('#btnDefsSave').onclick = ()=>{
+    let j;
+    try{ j = JSON.parse($('#defsTa').value || '[]'); }
+    catch(e){ $('#defsErr').textContent='JSONエラー: '+e.message; return; }
+    if(!Array.isArray(j)) j=[j];
+    if(j.length && !looksLikeDefs(j)){ $('#defsErr').textContent='各定義に match(文字列) と headers(配列) が必要です。'; return; }
+    defs = j; LS.set('ifv_defs', defs);
+    settings.contDot = $('#chkContDot').checked;
+    settings.font = $('#selFont').value;
+    settings.fontCustom = $('#fontCustom').value;
+    LS.set('ifv_settings', settings);
+    applyDisplaySettings();
+    $('#modalBack').classList.remove('show');
+    tabs.forEach(t=>{ t._cache.cellsKey=null; });
+    renderAll(true);
+    toast(LS.ok?'保存しました':'このセッション内でのみ有効です（localStorage不可）');
+  };
+  $('#defsFile').onchange = async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    try{
+      const j = JSON.parse(await f.text());
+      if(!looksLikeDefs(j)) throw new Error('定義スキーマに一致しません');
+      $('#defsTa').value = JSON.stringify(Array.isArray(j)?j:[j], null, 2);
+      $('#defsErr').textContent='読み込みました。「保存して閉じる」で適用します。';
+    }catch(err){ $('#defsErr').textContent='読み込み失敗: '+err.message; }
+    e.target.value='';
+  };
+}
+
+/* =====================================================================
+ * 全体描画 / 遅延描画
+ * =================================================================== */
+let observer=null;
+function setupSentinel(loadMore){
+  if(observer) observer.disconnect();
+  const sent = $('#sentinel'); if(!sent) return;
+  observer = new IntersectionObserver(es=>{
+    for(const en of es) if(en.isIntersecting){
+      let guard=0;
+      while(en.isIntersecting && loadMore() && ++guard<4){} /* 画面が埋まるまで数回 */
+    }
+  }, {root:$('#content'), rootMargin:'600px'});
+  observer.observe(sent);
+}
+function renderAll(keepScroll){
+  const tab = curTab();
+  updateToolbar(); renderSide();
+  const content = $('#content');
+  if(!tab){
+    content.textContent='';
+    content.appendChild(buildDropHint());
+    updateStatus(); return;
+  }
+  if(tab.mode==='text'){ prepText(tab); if(!tab.hits.length&&tab.query)rebuildTextSearch(tab); buildTextView(tab, keepScroll); }
+  else { makeBinHitSet(tab); buildBinView(tab, keepScroll); }
+  updateStatus();
+}
+function buildDropHint(){
+  const d = el('div'); d.id='drop';
+  d.innerHTML = `
+    <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
+    <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+    <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
+    <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>`;
+  return d;
+}
+
+/* ---------- D&D ---------- */
+function initDnD(){
+  window.addEventListener('dragover', e=>{ e.preventDefault(); document.body.classList.add('dragging'); });
+  window.addEventListener('dragleave', e=>{ if(e.target===document.body||e.relatedTarget==null) document.body.classList.remove('dragging'); });
+  window.addEventListener('drop', e=>{
+    e.preventDefault(); document.body.classList.remove('dragging');
+    const files = [...(e.dataTransfer?.files||[])];
+    if(files.length) openFiles(files);
+  });
+}
+
+/* ---------- 起動 ---------- */
+initToolbar(); initSettings(); initDnD(); initBinSelect();
+applyDisplaySettings();
+renderAll();
+if(!LS.ok) console.warn('localStorage が使用できません。設定はセッション内のみ有効です。');
+</script>
+</body>
+</html>
