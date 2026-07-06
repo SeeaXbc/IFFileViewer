@@ -82,6 +82,15 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 .hdrblock{position:sticky;top:0;z-index:5;background:#fbf8ee;border-bottom:1px solid #d9d2b8;user-select:none;width:max-content;min-width:100%}
 .hdrrow{color:#7a6a2f}
 .hcell{display:inline-block;overflow:hidden;vertical-align:top;padding:0 1px}
+/* 仮想ヘッダーの列詳細(4.3)：詳細がある列は点線下線で示し、マウスオーバーでツールチップ表示 */
+.hcell.hasdet{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
+#hdrTip{display:none;position:fixed;z-index:50;max-width:min(480px,80vw);padding:6px 10px;
+  background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18);
+  font:12px/1.6 "Segoe UI","Meiryo",sans-serif;color:var(--fg);pointer-events:none}
+#hdrTip.show{display:block}
+#hdrTip .t{font-weight:600;margin-bottom:2px}
+#hdrTip .t .cno{color:var(--sub);font-weight:400;margin-left:6px;font-size:11px}
+#hdrTip .d{white-space:pre-wrap;word-break:break-word}
 .trow{width:max-content;min-width:100%}
 .trow:hover{background:#f2f6ff}
 .ln{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;text-align:right;
@@ -233,6 +242,8 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 <div id="status"></div>
 
+<div id="hdrTip"></div>
+
 <div id="modalBack">
   <div id="modal">
     <header><h2>設定 / 仮想ヘッダー定義</h2><button id="btnModalClose">✕</button></header>
@@ -249,7 +260,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
       </div>
       <div>
         <b>仮想ヘッダー定義（JSON配列）</b>
-        <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。</div>
+        <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。details（任意）に列ごとの詳細説明を並べると、ヘッダーのマウスオーバーでツールチップ表示されます（\n で複数行）。</div>
       </div>
       <textarea id="defsTa" spellcheck="false"></textarea>
       <div id="defsErr"></div>
@@ -290,6 +301,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
       <ul>
         <li><code>match</code>（ファイル名のワイルドカード）に一致した定義が自動適用されます。複数一致時は先頭優先で、「ヘッダー定義」から切替可能。</li>
         <li>定義の <code>delimiter</code> / <code>encoding</code> は開いたときの初期値になり、手動変更が常に優先。BOM付きファイルはBOM判定が優先されます。</li>
+        <li><b>列詳細</b>：定義に <code>details</code>（列ごとの説明文の配列。任意）を書くと、該当列のヘッダーに点線下線が付き、<b>マウスオーバーで詳細をツールチップ表示</b>します。<code>\n</code> で複数行にできます。表示層のみでデータ・コピーには影響しません。</li>
       </ul>
 
       <h3>マーカー（🖍）</h3>
@@ -818,6 +830,30 @@ function appendRuns(parent, text, arr, s, e){
   }
 }
 
+/* 仮想ヘッダーの列詳細ツールチップ(4.3)：表示層のみ。textContentで構築しHTMLは注入しない */
+function showHdrTip(cell, def){
+  const i = +cell.dataset.col;
+  const det = Array.isArray(def.details) ? def.details[i] : null;
+  if(det==null || String(det)==='') return;
+  const tip = $('#hdrTip');
+  tip.textContent='';
+  const name = (def.headers[0] && def.headers[0][i]!=null && String(def.headers[0][i])!=='') ? String(def.headers[0][i]) : '';
+  const t = el('div','t', name || `第${i+1}列`);
+  if(name) t.appendChild(el('span','cno', `第${i+1}列`));
+  tip.appendChild(t);
+  tip.appendChild(el('div','d', String(det)));
+  tip.classList.add('show');
+  const r = cell.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = Math.max(4, Math.min(r.left, window.innerWidth - tw - 8));
+  let y = r.bottom + 4;
+  if(y + th > window.innerHeight - 4) y = Math.max(4, r.top - th - 4);
+  tip.style.left = x+'px';
+  tip.style.top = y+'px';
+}
+function hideHdrTip(){ $('#hdrTip').classList.remove('show'); }
+$('#content').addEventListener('scroll', hideHdrTip, {passive:true});
+
 function buildTextView(tab, keepScroll){
   const content = $('#content');
   const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
@@ -828,8 +864,10 @@ function buildTextView(tab, keepScroll){
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
   /* 仮想ヘッダー(4.3)：表示層のみ・sticky */
+  hideHdrTip();
   if(tab.mode==='text' && def && def.headers && def.headers.length){
     const hb = el('div','hdrblock');
+    const dets = Array.isArray(def.details) ? def.details : null;
     for(const hrow of def.headers){
       const r = el('div','hdrrow');
       r.appendChild(makeLn(tab,''));
@@ -838,10 +876,19 @@ function buildTextView(tab, keepScroll){
         const cellw = cellOuterW(tab,c,i);
         const s = el('span','hcell',txt);
         s.style.width = `calc(${cellw}ch + ${tab.style==='excel'?9:0}px)`;
+        /* 列詳細(4.3)：details がある列は目印を付け、マウスオーバーで表示 */
+        if(dets && dets[i]!=null && String(dets[i])!==''){ s.classList.add('hasdet'); s.dataset.col = i; }
         r.appendChild(s);
       }
       hb.appendChild(r);
     }
+    hb.addEventListener('mouseover', e=>{
+      const cell = e.target.closest('.hcell.hasdet');
+      if(cell) showHdrTip(cell, def);
+    });
+    hb.addEventListener('mouseout', e=>{
+      if(e.target.closest('.hcell.hasdet') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.hcell.hasdet'))) hideHdrTip();
+    });
     content.appendChild(hb);
   }
   const rowsDiv = el('div'); rowsDiv.id='rows';
@@ -1657,7 +1704,13 @@ function escText(s){ const d=el('div'); d.textContent=s; return d.innerHTML; }
  * =================================================================== */
 const SAMPLE_DEFS = [{
   name:'受注IF', match:'IF_ORDER_*', delimiter:',', encoding:'shift_jis',
-  headers:[['顧客ID','受注日','金額','区分'],['必須','YYYYMMDD','整数','1=通常/2=返品']]
+  headers:[['顧客ID','受注日','金額','区分'],['必須','YYYYMMDD','整数','1=通常/2=返品']],
+  details:[
+    '顧客マスタのID。数字8桁固定・先頭0埋め。\n存在しないIDは取込エラーとなる。',
+    '受注日。YYYYMMDD形式（例: 20260401）。\n未来日付は不可。',
+    '税込金額。整数のみ（カンマ・小数点不可）。\nマイナスは返品時のみ許容。',
+    '受注区分。1=通常 / 2=返品。\nそれ以外の値は取込エラー。'
+  ]
 }];
 function openSettings(){
   $('#lsWarn').classList.toggle('hiddenCtl', LS.ok);
