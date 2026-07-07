@@ -14,6 +14,12 @@
       "税込金額。整数のみ（カンマ・小数点不可）。\nマイナスは返品時のみ許容。",
       "受注区分。1=通常 / 2=返品。\nそれ以外の値は取込エラー。",
       "備考（任意）。全角100文字まで。"
+    ],
+    "rules": [
+      { "col": 1, "required": true },
+      { "col": 2, "type": "date", "required": true },
+      { "col": 3, "type": "number", "required": true },
+      { "col": 4, "pattern": "^[12]$" }
     ]
   },
   {
@@ -38,6 +44,26 @@
     "encoding": "euc-jp",
     "headers": [
       ["品番", "品名", "在庫数"]
+    ]
+  },
+  {
+    "name": "固定長IF（伝票）",
+    "match": "IF_FIXED_*",
+    "encoding": "shift_jis",
+    "headers": [
+      ["伝票番号", "取引先名", "数量", "単価"]
+    ],
+    "widths": [6, 20, 5, 9],
+    "details": [
+      "伝票番号。D+数字5桁。",
+      "取引先名。全角10文字（20バイト）まで、右スペース詰め。",
+      "数量。数字5桁・右詰めゼロ埋め。必須。",
+      "単価。数字9桁・右詰めゼロ埋め。"
+    ],
+    "rules": [
+      { "col": 1, "required": true, "pattern": "^D\\d{5}$" },
+      { "col": 3, "type": "number", "required": true },
+      { "col": 4, "type": "number" }
     ]
   }
 ]

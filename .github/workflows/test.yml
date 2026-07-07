@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright-core install --with-deps chromium
+      - name: 型検査（単一HTMLからJSを抽出してtsc）
+        run: npm run typecheck
+      - name: E2Eテスト（バイト完全性・固定長・検査・UI回帰）
+        run: npm test

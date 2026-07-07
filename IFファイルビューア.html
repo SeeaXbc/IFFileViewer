@@ -128,13 +128,13 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 .chip .x{border:none;background:none;color:var(--sub);cursor:pointer;padding:0 2px}
 
 /* ---- modal ---- */
-#modalBack,#helpBack{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
-#modalBack.show,#helpBack.show{display:flex}
-#modal,#helpModal{width:min(720px,92vw);max-height:88vh;display:flex;flex-direction:column;background:var(--panel);border-radius:8px;
+#modalBack,#helpBack,#profBack{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
+#modalBack.show,#helpBack.show,#profBack.show{display:flex}
+#modal,#helpModal,#profModal{width:min(720px,92vw);max-height:88vh;display:flex;flex-direction:column;background:var(--panel);border-radius:8px;
   box-shadow:0 8px 30px rgba(0,0,0,.25)}
-#modal header,#helpModal header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
-#modal header h2,#helpModal header h2{margin:0;font-size:15px}
-#modal .body,#helpModal .body{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+#modal header,#helpModal header,#profModal header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+#modal header h2,#helpModal header h2,#profModal header h2{margin:0;font-size:15px}
+#modal .body,#helpModal .body,#profModal .body{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
 #helpModal{width:min(780px,92vw)}
 .help h3{margin:14px 0 4px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:3px}
 .help h3:first-child{margin-top:0}
@@ -156,6 +156,18 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 #toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#333;color:#fff;padding:7px 18px;
   border-radius:20px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;max-width:80vw}
 #toast.show{opacity:.94}
+
+/* ---- 検査・プロファイル(4.7) / 行フィルタ・ジャンプ ---- */
+.ngcell{outline:1px solid #e03131;outline-offset:-1px;background:#fff0f0}
+.trow.flash,.brow.flash{animation:rowflash 1.2s ease-out}
+@keyframes rowflash{0%{background:#ffec99}100%{background:transparent}}
+.ptable{border-collapse:collapse;font-size:12px}
+.ptable th,.ptable td{border:1px solid var(--border);padding:3px 10px;text-align:left;white-space:nowrap}
+.ptable th{background:var(--bg);color:var(--sub)}
+.ptable td:nth-child(3),.ptable td:nth-child(4),.ptable td:nth-child(5),.ptable td:nth-child(6){text-align:right;font-family:var(--mono)}
+#btnVal.on{background:#e03131;border-color:#e03131;color:#fff}
+#btnFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.fixedTag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:1px 8px;color:var(--sub);font-size:12px;background:var(--bg)}
 
 /* ---- 編集モード(9章) ---- */
 .edcell{outline:1px solid #f59f00;outline-offset:-1px;background:#fff4e6}
@@ -190,6 +202,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
     <button id="btnRegex" class="text-only" title="正規表現で検索（クリックで切替）" style="font-family:var(--mono);padding:2px 7px">.*</button>
     <button id="btnPrev" title="前へ (Shift+F3)">▲</button>
     <button id="btnNext" title="次へ (F3)">▼</button>
+    <button id="btnFilter" class="text-only" title="検索ヒット行のみを表示（クリックで切替）">⊜ ヒット行</button>
     <span id="searchCount"></span>
   </div>
   <div class="grp" style="margin-left:auto">
@@ -230,6 +243,11 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
   <div class="grp">
     <span class="lbl">ヘッダー定義</span>
     <select id="selDef" style="max-width:180px"></select>
+  </div>
+  <div class="grp">
+    <button id="btnProf" title="列ごとの統計（空欄・ユニーク・文字数・型推定）を表示">📊 列情報</button>
+    <button id="btnVal" title="ヘッダー定義の rules によるデータ検査（NGセルを赤枠表示）">✔ 検査</button>
+    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
   </div>
   <div class="grp">
     <button id="btnEditMode" title="セル単位の編集モード（元ファイルは変更されません）">✏ 編集</button>
@@ -280,6 +298,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
       <div>
         <b>仮想ヘッダー定義（JSON配列）</b>
         <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。details（任意）に列ごとの詳細説明を並べると、ヘッダーのマウスオーバーでツールチップ表示されます（\n で複数行）。</div>
+        <div class="note">widths（任意）：<b>固定長レイアウト</b>のバイト幅の配列（例 <code>[4,8,10]</code>）。指定すると区切り文字ではなくバイト幅で列分割します（全角はエンコーディングに応じたバイト数で計算）。rules（任意）：検査ルールの配列。<code>{"col":列番号(1始まり), "type":"number"|"date", "required":true, "pattern":"正規表現"}</code> を書くと「✔ 検査」ボタンでNGセルを赤枠表示できます。</div>
       </div>
       <textarea id="defsTa" spellcheck="false"></textarea>
       <div id="defsErr"></div>
@@ -294,7 +313,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 <div id="helpBack">
   <div id="helpModal">
-    <header><h2>❓ 使い方</h2><button id="btnHelpClose">✕</button></header>
+    <header><h2>❓ 使い方 <span id="helpVer" style="font-size:11px;color:var(--sub);font-weight:normal"></span></h2><button id="btnHelpClose">✕</button></header>
     <div class="body help">
       <h3>このツールについて</h3>
       <p>システム間連携のIFファイル（拡張子なし可）、CSV/TSV、任意区切りテキスト、バイナリファイルを閲覧する<b>読み取り専用ビューア</b>です。元ファイルへの書き込みは一切行いません。</p>
@@ -323,6 +342,19 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li><b>列詳細</b>：定義に <code>details</code>（列ごとの説明文の配列。任意）を書くと、該当列のヘッダーに点線下線が付き、<b>マウスオーバーで詳細をツールチップ表示</b>します。<code>\n</code> で複数行にできます。表示層のみでデータ・コピーには影響しません。</li>
       </ul>
 
+      <h3>固定長ファイル（COBOL系レイアウト）</h3>
+      <p>定義に <code>widths</code>（各列の<b>バイト幅</b>の配列。例 <code>[6,20,5,9]</code>）を書くと、区切り文字ではなく<b>バイト幅で列分割</b>します。全角文字は文字コードに応じたバイト数（Shift-JIS/EUC=2、UTF-8=3 等）で計算されます。</p>
+      <ul>
+        <li>定義の合計幅より長い行は、超過分が「余り列」として右端に表示されます（レイアウト崩れの発見に有効）。</li>
+        <li>編集モードでは<b>フィールドのバイト幅が自動で維持</b>されます（短い値は右側を半角スペースでパディング、幅超過は確定拒否）。</li>
+      </ul>
+
+      <h3>列情報（📊）と検査（✔）</h3>
+      <ul>
+        <li><b>📊 列情報</b>：列ごとの「値あり／空欄／ユニーク数／文字数の範囲／型推定（数値・日付）」を一覧表示。想定外の空欄や桁ズレを目視より速く発見できます。</li>
+        <li><b>✔ 検査</b>：定義に <code>rules</code> を書いたファイルで表示されます。<code>{"col":2, "type":"date", "required":true}</code> のように列番号（1始まり）ごとに <code>type</code>（number/date）・<code>required</code>・<code>pattern</code>（正規表現）を指定でき、NGセルを<b>赤枠＋理由ツールチップ</b>で表示。「NG行へ▼」で順にジャンプします。</li>
+      </ul>
+
       <h3>マーカー（🖍）</h3>
       <ul>
         <li><b>テキスト</b>：文字列（Aa切替可）・行番号・列番号（<code>3,10-20</code> の範囲指定可）をハイライト。色・ON/OFF・件数表示付き。</li>
@@ -342,7 +374,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
       <p>テキストモードで「✏ 編集」をONにすると、<b>セル単位で値を編集</b>して別ファイルとして保存できます。<b>元ファイルは一切変更されません</b>（保存は常に保存先フォルダへの新規ファイル作成）。</p>
       <ul>
         <li>セルを<b>ダブルクリック</b>で編集開始。<kbd>Enter</kbd>確定 / <kbd>Esc</kbd>取消 / <kbd>Tab</kbd>で隣のセルへ。</li>
-        <li>編集済みセルは<b>橙色の枠</b>で表示され、<b>右クリックで個別に元に戻せます</b>。「全て元に戻す」で一括取消。</li>
+        <li>編集済みセルは<b>橙色の枠</b>で表示され、<b>右クリックで個別に元に戻せます</b>。「全て元に戻す」で一括取消。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で編集操作単位のUndo/Redoができます。</li>
         <li>編集中は区切り文字・改行・文字コード・ヘッダー定義・モードの変更がロックされます（列構造とバイト完全性を守るため）。区切り文字や改行を含む値、選択中の文字コードで表現できない文字（例: Shift-JISにない文字）は確定できません。</li>
         <li><b>バイト完全性の保証</b>：保存ファイルでは、編集していない行・改行コード・BOMは元ファイルのバイトを無加工でコピーします。文字コードもそのまま維持されます。デコードが非可逆な行（不正バイトを含む行など）は編集不可になります。</li>
         <li><b>保存</b>：初回に「📁 保存先...」でフォルダを選ぶと、以後は確認なしで保存できます（フォルダはブラウザに記憶され、再起動後は権限確認が1回入ることがあります）。保存名は入力欄で変更でき、同名ファイルがあれば <code>名前 (1)</code> のように連番を付けます。フォルダ保存は Chrome/Edge のみ対応です。</li>
@@ -354,6 +386,13 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li><b><code>.*</code> ボタンで正規表現検索に切替</b>（VSCodeの検索と同じイメージ）。Aa（大文字小文字）は正規表現でも有効です。</li>
         <li>正規表現は<b>行単位</b>で照合します（複数行にまたがる一致はできません）。パターンが不正な場合は件数欄に「無効」と表示されます。</li>
         <li><kbd>Enter</kbd>/<kbd>F3</kbd>で次へ、<kbd>Shift+F3</kbd>で前へ。未表示領域のヒットへは表示を拡張してジャンプします。</li>
+        <li><b>⊜ ヒット行</b>：検索ヒットを含む行だけに絞って表示します（grepイメージ）。行番号は元ファイルのまま表示されます。</li>
+      </ul>
+
+      <h3>ジャンプ・列コピー</h3>
+      <ul>
+        <li><kbd>Ctrl+G</kbd>：テキストモードは<b>行番号</b>、バイナリモードは<b>オフセット</b>（10進または <code>0x</code> 付き16進）へジャンプします。</li>
+        <li><b>列コピー</b>：ヘッダーセルの<b>クリック</b>、またはデータセルの <kbd>Alt</kbd>+クリックで、その列の全行の値をクリップボードへコピーします（1行1値）。</li>
       </ul>
 
       <h3>正規表現サンプル</h3>
@@ -377,12 +416,21 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <tr><th>キー</th><th>動作</th></tr>
         <tr><td><kbd>Ctrl+F</kbd></td><td>検索ボックスへフォーカス</td></tr>
         <tr><td><kbd>F3</kbd> / <kbd>Shift+F3</kbd></td><td>次を検索 / 前を検索</td></tr>
+        <tr><td><kbd>Ctrl+G</kbd></td><td>行番号（テキスト）/ オフセット（バイナリ）へジャンプ</td></tr>
+        <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd></td><td>編集モード中のUndo / Redo</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>ダイアログを閉じる / バイナリの選択解除</td></tr>
       </table>
 
       <h3>設定の保存について</h3>
       <p>ヘッダー定義・登録区切り文字・フォント・拡大率などはブラウザの localStorage に保存されます。環境によって localStorage が使えない場合、設定は保存されませんが閲覧機能はすべて動作します（ヘッダー定義はJSONファイルのドロップで代用できます）。</p>
     </div>
+  </div>
+</div>
+
+<div id="profBack">
+  <div id="profModal">
+    <header><h2>📊 列情報</h2><button id="btnProfClose">✕</button></header>
+    <div class="body" id="profBody"></div>
   </div>
 </div>
 
@@ -394,10 +442,38 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 /* =====================================================================
  * IFファイルビューア — 単一HTML・読み取り専用
  * 要件定義書: IFファイルビューア_要件定義書.md
+ * 型検査: npm run typecheck（tools/typecheck.mjs がこの<script>を抽出してtscにかける）
  * =================================================================== */
 
+/* ---------- 主要データ構造（JSDoc型。エディタの補完とtsc検査に使用） ----------
+ * @typedef {Object} HeaderDef  仮想ヘッダー定義(4.3/4.6/4.7)
+ * @property {string}     match      ファイル名ワイルドカード
+ * @property {string}     [name]
+ * @property {string[][]} headers    ヘッダー行（外=行、内=列）
+ * @property {string}     [delimiter]
+ * @property {string}     [encoding]
+ * @property {string[]}   [details]  列ごとの説明（ツールチップ）
+ * @property {number[]}   [widths]   固定長レイアウトのバイト幅(4.6)
+ * @property {{col:number,type?:string,required?:boolean,pattern?:string}[]} [rules] 検査ルール(4.7)
+ *
+ * @typedef {Object} EditState  編集モード状態(9章)
+ * @property {string} enc                    編集開始時に固定した文字コード
+ * @property {{bytes:Uint8Array,term:Uint8Array,termStr:string}[]} segs 行別の元バイト（未編集行は保存時に無加工コピー）
+ * @property {Uint8Array} bom
+ * @property {Map<string,{orig:string}>} edits   'li:ci' → 元の値
+ * @property {Map<number,boolean>} lineOk        行の可逆性検証キャッシュ
+ * @property {Array<Object>} hist  Undo/Redo履歴
+ * @property {number} histI
+ * @property {boolean} unsaved
+ * @property {string} saveName
+ *
+ * Tab: createTab() が生成。_cache は派生キャッシュ（text/lines/rows/colW/valNG等）
+ * ------------------------------------------------------------------- */
+
 /* ---------- 小道具 ---------- */
+/** @type {(s:string)=>any} */
 const $ = s => document.querySelector(s);
+/** @type {(tag:string, cls?:string|null, text?:any)=>any} */
 function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
 function fmtSize(n){ if(n<1024)return n+' B'; if(n<1048576)return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(2)+' MB'; }
 let toastTimer=null;
@@ -412,6 +488,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
+const APP_VERSION = '1.2.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -628,6 +705,37 @@ function tokenize(line, delims){
   fields.push(line.slice(start));
   return {f:fields, d:ds};
 }
+
+/* --- 固定長分割(4.6)：定義JSONの widths（バイト幅）で分割。バイト幅は
+   エンコーディング依存のため、編集モードと同じエンコーダの文字バイト長を使う --- */
+function fixedWidths(tab){
+  const def = resolvedDef(tab);
+  if(!def || !Array.isArray(def.widths) || !def.widths.length) return null;
+  const w = def.widths.map(Number);
+  return w.every(x=>Number.isFinite(x)&&x>0) ? w : null;
+}
+function encCharLen(enc){
+  const e = makeEncoder(enc);
+  if(e) return e.chLen;
+  return ch=>chW(ch.codePointAt(0));  // 未対応エンコーディングは表示幅で近似
+}
+function splitFixed(line, widths, chLen){
+  const f = [];
+  let i = 0;
+  for(let w=0; w<widths.length; w++){
+    let remain = widths[w];
+    const start = i;
+    while(i<line.length && remain>0){
+      const ch = String.fromCodePoint(line.codePointAt(i));
+      const b = chLen(ch);
+      if(b>remain) break;  // フィールド境界をまたぐ文字は次列へ（レイアウト不正の可視化）
+      remain -= b; i += ch.length;
+    }
+    f.push(line.slice(start, i));
+  }
+  if(i<line.length) f.push(line.slice(i));  // 定義超過分は余り列として表示
+  return {f, d:new Array(f.length-1).fill('')};
+}
 const NL_TERMS = {crlf:'\r\n', lf:'\n', cr:'\r'};
 
 function prepText(tab){
@@ -659,14 +767,18 @@ function prepText(tab){
   }
   const delims = tab.delims.filter(Boolean).slice().sort((a,b)=>b.length-a.length);
   const def = resolvedDef(tab);
-  const cellsKey = JSON.stringify(delims) + '|' + (def ? JSON.stringify(def.headers) : '');
+  const fixed = fixedWidths(tab);
+  const cellsKey = (fixed ? 'F|'+enc+'|'+JSON.stringify(fixed) : 'D|'+JSON.stringify(delims))
+                 + '|' + (def ? JSON.stringify([def.headers, def.rules||null]) : '');
   if(c.cellsKey !== cellsKey){
     c.cellsKey = cellsKey;
     c.rows = []; c.rowDelims = [];
+    const chLen = fixed ? encCharLen(enc) : null;
     for(const l of c.lines){
-      const {f,d} = tokenize(l, delims);
+      const {f,d} = fixed ? splitFixed(l, fixed, chLen) : tokenize(l, delims);
       c.rows.push(f); c.rowDelims.push(d);
     }
+    c.valKey = null;  // 検査結果は再パースで無効化(4.7)
     /* 列幅計算：全データ + ヘッダー定義（幅は最大値、上限あり）。dW=各境界の区切り文字の最大幅 */
     let nc = 0;
     for(const r of c.rows) if(r.length>nc) nc=r.length;
@@ -728,6 +840,193 @@ function recountTextMarkers(tab){
       m.count = n;
     }
   }
+}
+
+/* --- 検査(4.7)：定義JSONの rules によるセル単位バリデーション --- */
+function valRules(tab){
+  const def = resolvedDef(tab);
+  if(!def || !Array.isArray(def.rules)) return [];
+  return def.rules.filter(r=>r && typeof r==='object' && Number.isFinite(+r.col) && +r.col>=1);
+}
+function isDateLike(s){
+  const m = s.match(/^(\d{4})([-\/]?)(\d{2})\2(\d{2})$/);
+  if(!m) return false;
+  const y=+m[1], mo=+m[3], d=+m[4];
+  return mo>=1 && mo<=12 && d>=1 && d<=new Date(y, mo, 0).getDate();
+}
+function checkRule(rule, v){
+  if(v==null) return rule.required ? '列がありません' : null;
+  const tv = v.trim();
+  if(rule.required && !tv) return '必須項目が空です';
+  if(tv){
+    if(rule.type==='number' && !/^[+-]?\d+(\.\d+)?$/.test(tv)) return '数値ではありません';
+    if(rule.type==='date' && !isDateLike(tv)) return '日付（YYYYMMDD等）ではありません';
+  }
+  if(rule.pattern){
+    try{ if(!new RegExp(rule.pattern).test(v)) return `パターン不一致: ${rule.pattern}`; }
+    catch(err){ /* 不正な正規表現ルールは無視 */ }
+  }
+  return null;
+}
+function checkLineRules(tab, rules, li, map){
+  const r = tab._cache.rows[li];
+  for(const rule of rules){
+    const ci = +rule.col - 1;
+    const reason = checkRule(rule, r[ci]);
+    if(reason) map.set(li+':'+ci, reason);
+  }
+}
+function ensureValidation(tab){
+  const c = tab._cache;
+  if(c.valKey === c.cellsKey && c.valNG) return;
+  const rules = valRules(tab);
+  const map = new Map();
+  for(let li=0; li<c.rows.length; li++) checkLineRules(tab, rules, li, map);
+  c.valNG = map; c.valKey = c.cellsKey;
+}
+function revalidateLine(tab, li){
+  const c = tab._cache; if(!c.valNG) return;
+  const rules = valRules(tab); if(!rules.length) return;
+  for(const k of [...c.valNG.keys()]) if(k.startsWith(li+':')) c.valNG.delete(k);
+  checkLineRules(tab, rules, li, c.valNG);
+}
+function toggleValidation(){
+  const t = curTab(); if(!t || t.mode!=='text') return;
+  t.valOn = !t.valOn;
+  if(t.valOn){
+    prepText(t); ensureValidation(t);
+    toast(t._cache.valNG.size ? `検査NG ${t._cache.valNG.size} セル（赤枠表示）` : '検査OK：NGセルはありません');
+  }
+  t._valCur = -1;
+  renderAll(true);
+}
+function jumpNextNG(){
+  const t = curTab(); if(!t || !t.valOn || !t._cache.valNG || !t._cache.valNG.size) return;
+  const lines = [...new Set([...t._cache.valNG.keys()].map(k=>+k.split(':')[0]))].sort((a,b)=>a-b);
+  t._valCur = ((t._valCur??-1)+1) % lines.length;
+  const li = lines[t._valCur];
+  ensureTextRows(t, li+1);
+  const row = $('#content').querySelector(`[data-l="${li}"]`);
+  if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
+  updateToolbar();
+}
+function flashRow(row){
+  row.classList.remove('flash'); void row.offsetWidth;  // アニメーション再発火
+  row.classList.add('flash');
+  setTimeout(()=>row.classList.remove('flash'), 1300);
+}
+
+/* --- 行/オフセットジャンプ（Ctrl+G） --- */
+function gotoPrompt(){
+  const t = curTab(); if(!t) return;
+  if(t.mode==='text'){
+    const c = prepText(t);
+    if(!c.lines.length) return;
+    const s = prompt(`行番号へジャンプ（1〜${c.lines.length.toLocaleString()}）`);
+    if(!s) return;
+    const n = Math.max(1, Math.min(c.lines.length, parseInt(s.replace(/[,，\s]/g,''),10)||1));
+    if(t.filterHits && t._flist && !t.hitsByLine.has(n-1)){
+      t.filterHits = false; renderAll(true);  // フィルタ外の行へはフィルタを解除して移動
+      toast('ヒット行フィルタを解除しました');
+    }
+    ensureTextRows(t, n);
+    const row = $('#content').querySelector(`[data-l="${n-1}"]`);
+    if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
+  }else{
+    const s = prompt(`オフセットへジャンプ（10進 または 16進 0x…、0〜${(t.bytes.length-1).toLocaleString()}）`);
+    if(!s) return;
+    const v = s.trim();
+    const n = /^0x/i.test(v) ? parseInt(v,16) : parseInt(v.replace(/[,，\s]/g,''),10);
+    if(!isNaN(n)) gotoBinOffset(t, n);
+  }
+}
+function gotoBinOffset(tab, off){
+  off = Math.max(0, Math.min(tab.bytes.length-1, off));
+  if(off+1 > tab.binLimit){
+    tab.binLimit = Math.min(tab.bytes.length, Math.ceil((off+1)/BIN_STEP)*BIN_STEP);
+    buildBinView(tab, false);
+  }
+  const row = Math.floor(off/16);
+  ensureBinRows(tab, row+1);
+  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  if(rowEl){ rowEl.scrollIntoView({block:'center'}); flashRow(rowEl); }
+}
+
+/* --- 列コピー：ヘッダークリック / Alt+セルクリック --- */
+async function copyColumn(tab, ci){
+  if(!(ci>=0)) return;
+  const c = prepText(tab);
+  const text = c.rows.map(r=>r[ci]??'').join('\n');
+  let ok = true;
+  try{ await navigator.clipboard.writeText(text); }
+  catch(err){
+    const ta = el('textarea'); ta.value = text; ta.style.cssText='position:fixed;left:-9999px';
+    document.body.appendChild(ta); ta.select();
+    try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
+    document.body.removeChild(ta);
+  }
+  toast(ok ? `第${ci+1}列（${c.rows.length.toLocaleString()} 行）をコピーしました` : 'コピーに失敗しました');
+}
+
+/* --- 列プロファイル(4.7)：列ごとの統計 --- */
+function computeProfile(tab){
+  const c = prepText(tab);
+  const nc = c.colW.length;
+  const NUMRE = /^[+-]?\d+(\.\d+)?$/;
+  const cols = Array.from({length:nc}, ()=>({n:0, empty:0, uniq:new Set(), over:false, minL:Infinity, maxL:0, num:0, date:0}));
+  for(const r of c.rows){
+    for(let i=0; i<r.length && i<nc; i++){
+      const v = r[i], t = cols[i], tv = v.trim();
+      t.n++;
+      if(!tv) t.empty++;
+      else { if(NUMRE.test(tv)) t.num++; if(isDateLike(tv)) t.date++; }
+      if(v.length<t.minL) t.minL = v.length;
+      if(v.length>t.maxL) t.maxL = v.length;
+      if(!t.over){ t.uniq.add(v); if(t.uniq.size>5000){ t.over=true; t.uniq.clear(); } }
+    }
+  }
+  return cols;
+}
+function openProfile(){
+  const t = curTab(); if(!t || t.mode!=='text') return;
+  const cols = computeProfile(t);
+  const c = t._cache;
+  const def = resolvedDef(t);
+  const hdr0 = (def && def.headers && def.headers[0]) || [];
+  const total = c.rows.length;
+  const body = $('#profBody'); body.textContent='';
+  const info = el('div', null, `${t.name} — ${c.lines.length.toLocaleString()} 行 × ${cols.length} 列`);
+  info.style.cssText = 'color:var(--sub);font-size:12px';
+  body.appendChild(info);
+  const wrap = el('div'); wrap.style.overflow='auto';
+  const tbl = el('table','ptable');
+  const thr = el('tr');
+  for(const h of ['列','ヘッダー','値あり','空欄','ユニーク','文字数','型推定']) thr.appendChild(el('th',null,h));
+  tbl.appendChild(thr);
+  cols.forEach((col,i)=>{
+    const filled = col.n - col.empty;
+    const miss = total - col.n;
+    let type = '文字';
+    if(filled===0) type = '（全て空）';
+    else if(col.date===filled) type = '日付';
+    else if(col.num===filled) type = '数値';
+    else if(col.num>=filled*0.9) type = `ほぼ数値（例外${filled-col.num}件）`;
+    else if(col.date>=filled*0.9) type = `ほぼ日付（例外${filled-col.date}件）`;
+    const tr = el('tr');
+    const cells = [
+      String(i+1), String(hdr0[i]??''),
+      filled.toLocaleString(),
+      col.empty.toLocaleString() + (miss>0?`（列なし${miss.toLocaleString()}）`:''),
+      col.over ? '5000超' : String(col.uniq.size),
+      col.n ? (col.minL===col.maxL ? String(col.maxL) : `${col.minL}〜${col.maxL}`) : '-',
+      type
+    ];
+    for(const v of cells) tr.appendChild(el('td',null,v));
+    tbl.appendChild(tr);
+  });
+  wrap.appendChild(tbl);
+  body.appendChild(wrap);
+  $('#profBack').classList.add('show');
 }
 
 /* --- 検索(6章) --- */
@@ -896,6 +1195,9 @@ function buildTextView(tab, keepScroll){
   content.textContent='';
   const c = prepText(tab);
   recountTextMarkers(tab);
+  if(tab.valOn) ensureValidation(tab);
+  /* 行フィルタ(6章)：検索ヒット行のみ表示。表示行リストを毎ビルドで再計算 */
+  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : null;
   const def = resolvedDef(tab);
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
@@ -925,6 +1227,12 @@ function buildTextView(tab, keepScroll){
     hb.addEventListener('mouseout', e=>{
       if(e.target.closest('.hcell.hasdet') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.hcell.hasdet'))) hideHdrTip();
     });
+    /* ヘッダークリックで列コピー */
+    hb.addEventListener('click', e=>{
+      const cell = e.target.closest('.hcell'); if(!cell) return;
+      const i = [...cell.parentNode.children].indexOf(cell) - 1;  // 先頭は行番号セル
+      if(i>=0) copyColumn(tab, i);
+    });
     content.appendChild(hb);
   }
   const rowsDiv = el('div'); rowsDiv.id='rows';
@@ -942,16 +1250,32 @@ function buildTextView(tab, keepScroll){
       }
     });
   }
+  /* Alt+クリックで列コピー（編集モード以外でも有効） */
+  rowsDiv.addEventListener('click', e=>{
+    if(!e.altKey) return;
+    const cell = e.target.closest('.xcell,.cell'); if(!cell) return;
+    e.preventDefault();
+    copyColumn(tab, +cell.dataset.c);
+  });
   content.appendChild(rowsDiv);
   const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
   content.appendChild(sent);
 
+  const total = totalTextRows(tab);
+  if(tab.filterHits && !total){
+    const hint = el('div', null, tab.query ? '検索ヒット行がありません（⊜ ヒット行フィルタ中）' : '検索語を入力するとヒット行のみ表示されます（⊜ ヒット行フィルタ中）');
+    hint.style.cssText = 'color:var(--sub);padding:14px';
+    rowsDiv.appendChild(hint);
+  }
   tab.renderedText = 0;
-  const target = Math.max(CHUNK_TEXT, Math.min(tab._keepTextRows||0, c.lines.length));
-  while(tab.renderedText < Math.min(target, c.lines.length)) appendTextRows(tab, CHUNK_TEXT);
+  const target = Math.max(CHUNK_TEXT, Math.min(tab._keepTextRows||0, total));
+  while(tab.renderedText < Math.min(target, total)) appendTextRows(tab, CHUNK_TEXT);
 
-  setupSentinel(()=>{ if(tab.renderedText < c.lines.length){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
+  setupSentinel(()=>{ if(tab.renderedText < totalTextRows(tab)){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
   if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
+}
+function totalTextRows(tab){
+  return tab._flist ? tab._flist.length : tab._cache.lines.length;
 }
 function cellOuterW(tab,c,i){
   /* 桁揃えはセル幅=値幅+区切り最大幅+区切り後間隔（最終列は値幅のみ）。
@@ -967,11 +1291,11 @@ function makeLn(tab, text){
   return s;
 }
 function appendTextRows(tab, n){
-  const c = tab._cache;
   const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const src = tab._flist;  // 行フィルタ中は表示行リスト経由
   const frag = document.createDocumentFragment();
-  const end = Math.min(tab.renderedText+n, c.lines.length);
-  for(let li=tab.renderedText; li<end; li++) frag.appendChild(buildTextRow(tab, li));
+  const end = Math.min(tab.renderedText+n, totalTextRows(tab));
+  for(let k=tab.renderedText; k<end; k++) frag.appendChild(buildTextRow(tab, src ? src[k] : k));
   rowsDiv.appendChild(frag);
   tab.renderedText = end;
   tab._keepTextRows = end;
@@ -993,10 +1317,12 @@ function buildTextRow(tab, li){
     const v = cells[i], vs=off, ve=off+v.length;
     const dl = i<cells.length-1 ? ds[i] : null;
     const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
+    const ngReason = (tab.valOn && c.valNG) ? c.valNG.get(li+':'+i) : null;
     if(tab.style==='excel'){
       const cell = el('span','xcell');
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
+      if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
       cell.style.width = `calc(${cellOuterW(tab,c,i)||1}ch + 9px)`;
       if(colMk) cell.style.background = colMk.color;
       appendRuns(cell, line, arr, vs, ve);
@@ -1005,6 +1331,7 @@ function buildTextRow(tab, li){
       const cell = el('span','cell');
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
+      if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
       if(colMk) cell.style.background = colMk.color;
       const vsp = el('span','v');
       vsp.style.minWidth = (c.colW[i]||1)+'ch';
@@ -1028,12 +1355,22 @@ function refreshRenderedTextRows(tab){
   const rows = rowsDiv.children;
   for(let k=0;k<rows.length;k++){
     const li = +rows[k].dataset.l;
+    if(isNaN(li)) continue;  // フィルタ時のヒント表示等はスキップ
     rowsDiv.replaceChild(buildTextRow(tab, li), rows[k]);
   }
 }
 function ensureTextRows(tab, upto){
-  while(tab.renderedText < upto && tab.renderedText < tab._cache.lines.length)
-    appendTextRows(tab, Math.max(CHUNK_TEXT, upto-tab.renderedText));
+  /* upto は「行番号 upto-1 まで表示する」の意。フィルタ中は表示リスト上の位置に変換 */
+  let need = upto;
+  if(tab._flist){
+    const li = upto-1;
+    let lo=0, hi=tab._flist.length;
+    while(lo<hi){ const m=(lo+hi)>>1; if(tab._flist[m]<li) lo=m+1; else hi=m; }
+    need = Math.min(tab._flist.length, lo+1);
+  }
+  const total = totalTextRows(tab);
+  while(tab.renderedText < need && tab.renderedText < total)
+    appendTextRows(tab, Math.max(CHUNK_TEXT, need-tab.renderedText));
 }
 
 /* =====================================================================
@@ -1397,6 +1734,7 @@ function initBinSelect(){
       /* ダイアログが開いていればそちらを閉じる */
       if($('#helpBack').classList.contains('show')){ $('#helpBack').classList.remove('show'); return; }
       if($('#modalBack').classList.contains('show')){ $('#modalBack').classList.remove('show'); return; }
+      if($('#profBack').classList.contains('show')){ $('#profBack').classList.remove('show'); return; }
       const t=curTab(); if(t) clearBinSel(t);
     }
   });
@@ -1529,7 +1867,8 @@ function makeEncoder(enc){
   let e = null;
   if(enc==='utf-8'){
     const te = new TextEncoder();
-    e = { encode(s){ return {bytes:te.encode(s)}; } };
+    e = { encode(s){ return {bytes:te.encode(s)}; },
+          chLen(ch){ const cp=ch.codePointAt(0); return cp<0x80?1:cp<0x800?2:cp<0x10000?3:4; } };
   }else if(enc==='utf-16le' || enc==='utf-16be'){
     const le = enc==='utf-16le';
     e = { encode(s){
@@ -1537,14 +1876,14 @@ function makeEncoder(enc){
       for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i);
         if(le){ b[i*2]=c&0xFF; b[i*2+1]=c>>8; } else { b[i*2]=c>>8; b[i*2+1]=c&0xFF; } }
       return {bytes:b};
-    }};
+    }, chLen(ch){ return ch.length*2; } };
   }else if(enc==='ascii'){
     e = { encode(s){
       const b = new Uint8Array(s.length);
       for(let i=0;i<s.length;i++){ const c=s.charCodeAt(i);
         if(c===9||c===10||c===13||(c>=0x20&&c<=0x7E)) b[i]=c; else return {bad:s[i]}; }
       return {bytes:b};
-    }};
+    }, chLen(){ return 1; } };
   }else{
     const map = buildReverseTable(enc);
     if(map) e = { encode(s){
@@ -1555,7 +1894,7 @@ function makeEncoder(enc){
         for(const x of b) out.push(x);
       }
       return {bytes:new Uint8Array(out)};
-    }};
+    }, chLen(ch){ const b=map.get(ch); return b?b.length:2; } };  // 未知文字は全角=2バイト仮定
   }
   _encCache[enc] = e;
   return e;
@@ -1629,7 +1968,8 @@ function enterEditMode(tab){
   const ok = sp.segs.length===c.lines.length
     && sp.segs.map((s,i)=>c.lines[i]+s.termStr).join('') === c.text;
   if(!ok){ toast('このファイルは編集モードを開始できません（行の対応付けに失敗しました）'); return; }
-  tab.edit = { enc, segs:sp.segs, bom:sp.bom, edits:new Map(), lineOk:new Map(), unsaved:false, saveName:tab.name };
+  tab.edit = { enc, segs:sp.segs, bom:sp.bom, edits:new Map(), lineOk:new Map(),
+               hist:[], histI:0, unsaved:false, saveName:tab.name };
   restoreSaveDir();
   renderAll(true);
   toast('編集モード: セルをダブルクリックで編集できます（元ファイルは変更されません）');
@@ -1663,64 +2003,106 @@ function lineEditable(tab, li){
 function commitCellEdit(tab, li, ci, val){
   const ed = tab.edit, c = tab._cache;
   const cur = c.rows[li][ci];
+  const fixed = fixedWidths(tab);
+  if(fixed){
+    if(/[\r\n]/.test(val)) return '改行を含む値は確定できません';
+    const r0 = makeEncoder(ed.enc).encode(val);
+    if(!r0.bytes) return `「${r0.bad}」は ${encLabel(ed.enc)} で表現できない文字です`;
+    if(ci<fixed.length){  // 余り列（定義超過分）は幅制約なし
+      const w = fixed[ci], bl = r0.bytes.length;
+      const sp = (ed.enc==='utf-16le'||ed.enc==='utf-16be') ? 2 : 1;  // 半角スペースのバイト数
+      if(bl>w) return `固定長フィールド第${ci+1}列（${w}バイト）を超えています（${bl}バイト）`;
+      if(bl<w){
+        if((w-bl)%sp) return `第${ci+1}列の幅 ${w}バイトに揃えられません`;
+        val += ' '.repeat((w-bl)/sp);  // 右側を半角スペースでパディングして幅を維持
+      }
+    }
+  }else{
+    for(const d of tab.delims) if(d && val.includes(d))
+      return `区切り文字「${delimChipLabel(d)}」を含む値は確定できません（列構造が変わるため）`;
+    if(/[\r\n]/.test(val)) return '改行を含む値は確定できません';
+    const r = makeEncoder(ed.enc).encode(val);
+    if(!r.bytes) return `「${r.bad}」は ${encLabel(ed.enc)} で表現できない文字です`;
+  }
   if(val===cur) return null;
-  for(const d of tab.delims) if(d && val.includes(d))
-    return `区切り文字「${delimChipLabel(d)}」を含む値は確定できません（列構造が変わるため）`;
-  if(/[\r\n]/.test(val)) return '改行を含む値は確定できません';
-  const r = makeEncoder(ed.enc).encode(val);
-  if(!r.bytes) return `「${r.bad}」は ${encLabel(ed.enc)} で表現できない文字です`;
-  const key = li+':'+ci;
-  const rec = ed.edits.get(key);
-  if(rec){ if(rec.orig===val) ed.edits.delete(key); }
-  else ed.edits.set(key, {orig:cur});
-  ed.unsaved = true;
-  applyCellValue(tab, li, ci, val);
+  pushHist(ed, {li, ci, before:cur, after:val});
+  setCellRaw(tab, li, ci, val);
+  finishCellChanges(tab);
   return null;
 }
-function applyCellValue(tab, li, ci, val){
+/* セル値の低レベル反映：rows/lines/edits台帳/列幅を更新（履歴・再描画は呼び出し側） */
+function setCellRaw(tab, li, ci, val){
   const c = tab._cache, ed = tab.edit;
+  const key = li+':'+ci, rec = ed.edits.get(key);
+  if(rec){ if(rec.orig===val) ed.edits.delete(key); }
+  else if(c.rows[li][ci]!==val) ed.edits.set(key, {orig:c.rows[li][ci]});
   c.rows[li][ci] = val;
   c.lines[li] = joinRowLine(c.rows[li], c.rowDelims[li]);
+  if(tab.valOn) revalidateLine(tab, li);
+  const w = strW(val);
+  if(c.colW && ci<c.colW.length){ if(w>c.colW[ci]){ c.colW[ci]=Math.min(w,MAX_COLW); tab._growW=true; } }
+  else tab._growW = true;
+}
+function finishCellChanges(tab){
+  const c = tab._cache, ed = tab.edit;
+  ed.unsaved = true;
   c.text = c.lines.map((l,i)=>l+ed.segs[i].termStr).join('');  // マーカー件数等の整合
   c.lower = null;
-  let grow = false;
-  const w = strW(val);
-  if(c.colW && w>c.colW[ci]){ c.colW[ci]=Math.min(w,MAX_COLW); grow=true; }
   recountTextMarkers(tab);
   rebuildTextSearch(tab);
   if(curTab()===tab){  // 表示中タブ以外への確定（blur経由）ではDOMを触らない
-    if(grow) renderAll(true);
+    if(tab._growW){ tab._growW=false; renderAll(true); }
     else { refreshRenderedTextRows(tab); updateStatus(); }
     updateEditCtls();
-  }
+  } else tab._growW = false;
 }
 function joinRowLine(f, ds){
   let s = f[0]||'';
   for(let k=0;k<ds.length;k++) s += ds[k] + (f[k+1]??'');
   return s;
 }
+/* --- 編集履歴（Undo/Redo） --- */
+function pushHist(ed, entry){
+  ed.hist.length = ed.histI;         // Redo分岐を破棄
+  ed.hist.push(entry);
+  if(ed.hist.length>500) ed.hist.shift();
+  ed.histI = ed.hist.length;
+}
+function undoEdit(tab){
+  const ed = tab.edit; if(!ed) return;
+  if(!closeCellEd(true)) return;
+  if(ed.histI<=0){ toast('取り消す編集はありません'); return; }
+  const en = ed.hist[--ed.histI];
+  for(const op of (en.ops||[en])) setCellRaw(tab, op.li, op.ci, op.before);
+  finishCellChanges(tab);
+  toast('編集を1つ元に戻しました（Ctrl+Y でやり直し）');
+}
+function redoEdit(tab){
+  const ed = tab.edit; if(!ed) return;
+  if(!closeCellEd(true)) return;
+  if(ed.histI>=ed.hist.length){ toast('やり直す編集はありません'); return; }
+  const en = ed.hist[ed.histI++];
+  for(const op of (en.ops||[en])) setCellRaw(tab, op.li, op.ci, op.after);
+  finishCellChanges(tab);
+  toast('編集をやり直しました');
+}
 function revertCell(tab, li, ci){
   const rec = tab.edit.edits.get(li+':'+ci); if(!rec) return;
-  tab.edit.edits.delete(li+':'+ci);
-  tab.edit.unsaved = true;
-  applyCellValue(tab, li, ci, rec.orig);
+  pushHist(tab.edit, {li, ci, before:tab._cache.rows[li][ci], after:rec.orig});
+  setCellRaw(tab, li, ci, rec.orig);
+  finishCellChanges(tab);
   toast('セルを元に戻しました');
 }
 function revertAllEdits(tab){
   const ed = tab.edit, c = tab._cache;
   if(!ed.edits.size) return;
-  for(const [k,rec] of ed.edits){
+  const ops = [...ed.edits.entries()].map(([k,rec])=>{
     const [li,ci] = k.split(':').map(Number);
-    c.rows[li][ci] = rec.orig;
-    c.lines[li] = joinRowLine(c.rows[li], c.rowDelims[li]);
-  }
-  ed.edits.clear();
-  ed.unsaved = true;
-  c.text = c.lines.map((l,i)=>l+ed.segs[i].termStr).join('');
-  c.lower = null;
-  recountTextMarkers(tab);
-  rebuildTextSearch(tab);
-  renderAll(true);
+    return {li, ci, before:c.rows[li][ci], after:rec.orig};
+  });
+  pushHist(ed, {ops});
+  for(const op of ops) setCellRaw(tab, op.li, op.ci, op.after);
+  finishCellChanges(tab);
 }
 
 /* --- インラインセルエディタ（セルに重ねる固定位置input） --- */
@@ -1802,6 +2184,8 @@ function buildSaveBytes(tab){
 }
 
 /* --- 保存先フォルダ（File System Access API）＋IndexedDBで権限ハンドル永続化 --- */
+/* FSAはlib.domに型がないため any 経由で参照する */
+function fsaAvailable(){ return typeof (/** @type {any} */(window)).showDirectoryPicker === 'function'; }
 let saveDir=null, _saveDirTried=false;
 function idbKV(op, key, val){
   return new Promise(res=>{
@@ -1828,9 +2212,9 @@ async function restoreSaveDir(){
   updateEditCtls();
 }
 async function pickSaveDir(){
-  if(!window.showDirectoryPicker) return;
+  if(!fsaAvailable()) return;
   try{
-    const h = await showDirectoryPicker({mode:'readwrite'});
+    const h = await (/** @type {any} */(window)).showDirectoryPicker({mode:'readwrite'});
     saveDir = h;
     await idbKV('set','dir',h);
     updateEditCtls();
@@ -1854,7 +2238,7 @@ async function uniqueName(dir, name){
 async function saveEditedFile(tab){
   const ed = tab.edit; if(!ed) return;
   if(!closeCellEd(true)) return;
-  if(!window.showDirectoryPicker){ toast('このブラウザはフォルダ保存に未対応です（Chrome/Edge を使用してください）'); return; }
+  if(!fsaAvailable()){ toast('このブラウザはフォルダ保存に未対応です（Chrome/Edge を使用してください）'); return; }
   await restoreSaveDir();
   if(!saveDir){ await pickSaveDir(); if(!saveDir) return; }
   if(!(await ensureDirPermission())){ toast('保存先フォルダへのアクセスが許可されませんでした。「📁」から選び直してください。'); return; }
@@ -1886,7 +2270,7 @@ function updateEditCtls(){
   $('#editCount').textContent = t.edit.edits.size
     ? `編集済み ${t.edit.edits.size} セル${t.edit.unsaved?'':'（保存済み）'}` : '';
   $('#btnRevertAll').disabled = !t.edit.edits.size;
-  const fsa = !!window.showDirectoryPicker;
+  const fsa = fsaAvailable();
   $('#btnSaveFile').disabled = !fsa;
   $('#btnSaveDir').disabled = !fsa;
   $('#btnSaveFile').title = fsa ? '保存先フォルダに新規ファイルとして保存（元ファイルは変更されません）'
@@ -1966,20 +2350,32 @@ function initToolbar(){
     clearTimeout(debounce);
     debounce = setTimeout(()=>{
       const t=curTab(); if(!t)return;
-      if(t.mode==='text'){ t.query=$('#searchBox').value; rebuildTextSearch(t); refreshRenderedTextRows(t); }
+      if(t.mode==='text'){ t.query=$('#searchBox').value; rebuildTextSearch(t); afterSearchChange(t); }
       else { t.binQuery=$('#searchBox').value; rebuildBinSearch(t); refreshRenderedBinRows(t); }
     },250);
   };
   $('#searchBox').onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); } };
   $('#chkCase').onchange = ()=>{ const t=curTab(); if(!t)return;
-    t.queryCase=$('#chkCase').checked; rebuildTextSearch(t); refreshRenderedTextRows(t); };
+    t.queryCase=$('#chkCase').checked; rebuildTextSearch(t); afterSearchChange(t); };
   $('#btnRegex').onclick = ()=>{ const t=curTab(); if(!t)return;
     t.queryRegex = !t.queryRegex;
     $('#btnRegex').classList.toggle('on', t.queryRegex);
     $('#searchBox').placeholder = t.queryRegex ? '正規表現' : '文字列';
-    rebuildTextSearch(t); refreshRenderedTextRows(t); };
+    rebuildTextSearch(t); afterSearchChange(t); };
   $('#btnNext').onclick = ()=>doSearch(1);
   $('#btnPrev').onclick = ()=>doSearch(-1);
+  $('#btnFilter').onclick = ()=>{
+    const t=curTab(); if(!t)return;
+    t.filterHits = !t.filterHits;
+    renderAll(true);
+  };
+
+  /* 列情報・検査(4.7) */
+  $('#btnProf').onclick = openProfile;
+  $('#btnProfClose').onclick = ()=>$('#profBack').classList.remove('show');
+  $('#profBack').onclick = e=>{ if(e.target===$('#profBack')) $('#profBack').classList.remove('show'); };
+  $('#btnVal').onclick = toggleValidation;
+  $('#btnValJump').onclick = jumpNextNG;
 
   /* 編集モード(9章) */
   $('#btnEditMode').onclick = ()=>{ const t=curTab(); if(!t)return; t.edit ? exitEditMode(t) : enterEditMode(t); };
@@ -2002,13 +2398,31 @@ function initToolbar(){
 
   document.addEventListener('keydown', e=>{
     if(e.key==='F3'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); }
-    if((e.ctrlKey||e.metaKey)&&e.key==='f'){ e.preventDefault(); $('#searchBox').focus(); $('#searchBox').select(); }
+    if(e.ctrlKey||e.metaKey){
+      const k = e.key.toLowerCase();
+      if(k==='f'){ e.preventDefault(); $('#searchBox').focus(); $('#searchBox').select(); }
+      else if(k==='g'){ e.preventDefault(); gotoPrompt(); }
+      else if(k==='z'||k==='y'){
+        /* 編集モードのUndo/Redo(9章)。input内は各inputのネイティブ動作を優先 */
+        const t = curTab();
+        const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+        if(t && t.edit && !inInput){
+          e.preventDefault();
+          if(k==='y' || (k==='z'&&e.shiftKey)) redoEdit(t); else undoEdit(t);
+        }
+      }
+    }
   });
+}
+function afterSearchChange(t){
+  /* ヒット集合が変わったときの再描画：フィルタ中は表示行自体が変わるため全再構築 */
+  if(t.filterHits) renderAll(true);
+  else refreshRenderedTextRows(t);
 }
 function doSearch(dir){
   const t=curTab(); if(!t)return;
   if(t.mode==='text'){
-    if(t.query!==$('#searchBox').value){ t.query=$('#searchBox').value; rebuildTextSearch(t); }
+    if(t.query!==$('#searchBox').value){ t.query=$('#searchBox').value; rebuildTextSearch(t); if(t.filterHits) renderAll(true); }
     gotoTextHit(dir); refreshRenderedTextRows(t);
     const h=t.hits[t.curHit]; if(h){ const row=$('#content').querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
   }else{
@@ -2028,7 +2442,7 @@ function setStyle(s){
 function updateToolbar(){
   const t = curTab();
   const has = !!t;
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
@@ -2038,7 +2452,7 @@ function updateToolbar(){
   ['#selEnc','#selNl','#delimAdd','#selDef','#btnText','#btnBin'].forEach(s=>{ $(s).disabled = lock; });
   $('#btnText').classList.toggle('on', t.mode==='text');
   $('#btnBin').classList.toggle('on', t.mode==='bin');
-  document.querySelectorAll('.text-only').forEach(e=>e.style.display = t.mode==='text'?'':'none');
+  document.querySelectorAll('.text-only').forEach((/** @type {any} */e)=>{ e.style.display = t.mode==='text'?'':'none'; });
   $('#selEnc').value = t.encSel;
   renderDelimChips(t);
   $('#selNl').value = t.nlSel||'auto';
@@ -2050,6 +2464,8 @@ function updateToolbar(){
   $('#searchBox').value = t.mode==='text'?t.query:t.binQuery;
   $('#chkCase').checked = t.queryCase;
   $('#btnRegex').classList.toggle('on', !!t.queryRegex);
+  $('#btnFilter').classList.toggle('on', !!t.filterHits);
+  updateValCtls(t);
   /* ヘッダー定義セレクト */
   const sd = $('#selDef'); sd.textContent='';
   const ai = matchDef(t.name);
@@ -2058,6 +2474,16 @@ function updateToolbar(){
   defs.forEach((d,i)=>{ const o=el('option',null,d.name||d.match); o.value=String(i); sd.appendChild(o); });
   sd.value = String(t.defSel);
   updateSearchCount();
+}
+function updateValCtls(t){
+  /* 検査ボタン(4.7)：rules を持つ定義が有効なときのみ表示 */
+  const rules = t ? valRules(t) : [];
+  $('#btnVal').style.display = rules.length ? '' : 'none';
+  $('#btnVal').classList.toggle('on', !!(t && t.valOn));
+  const ngc = (t && t.valOn && t._cache.valNG) ? t._cache.valNG.size : 0;
+  $('#btnVal').textContent = (t && t.valOn) ? `✔ 検査 NG:${ngc.toLocaleString()}` : '✔ 検査';
+  $('#btnValJump').classList.toggle('hiddenCtl', !ngc);
+  $('#btnValJump').textContent = 'NG行へ▼';
 }
 function delimChipLabel(v){
   if(v===',') return ',';
@@ -2070,6 +2496,12 @@ function delimChipLabel(v){
 function renderDelimChips(tab){
   /* プリセット + 登録済み任意区切りをチップ表示。クリックで有効/無効（複数同時可） */
   const box = $('#delimChips'); box.textContent='';
+  const fixed = fixedWidths(tab);
+  $('#delimAdd').style.display = fixed ? 'none' : '';
+  if(fixed){  // 固定長定義(4.6)適用中は区切りではなく幅で分割
+    box.appendChild(el('span','fixedTag', `固定長: ${fixed.length}列 / 計${fixed.reduce((a,b)=>a+b,0)}バイト`));
+    return;
+  }
   const vals = [...DELIM_PRESETS.map(p=>p[0]), ...customDelims];
   for(const v of tab.delims) if(!vals.includes(v)) vals.push(v);  // 定義由来などの未登録値
   for(const v of vals){
@@ -2132,6 +2564,9 @@ function updateStatus(){
     if(c.lines){
       const nl=c.nl, kinds=[]; if(nl.crlf)kinds.push('CRLF×'+nl.crlf); if(nl.lf)kinds.push('LF×'+nl.lf); if(nl.cr)kinds.push('CR×'+nl.cr);
       items.push(`${c.lines.length.toLocaleString()} 行 / ${c.colW?c.colW.length:0} 列`);
+      if(t.filterHits) items.push(`⊜ <b>ヒット行のみ表示</b>（${totalTextRows(t).toLocaleString()} 行）`);
+      if(t.valOn && c.valNG) items.push(c.valNG.size ? `✔ 検査NG: <b>${c.valNG.size.toLocaleString()} セル</b>` : '✔ 検査OK');
+      if(fixedWidths(t)) items.push('固定長');
       const nlHead = (t.nlSel&&t.nlSel!=='auto') ? `<b>${t.nlSel.toUpperCase()} 指定</b> / 検出: ` : '';
       items.push(`改行: ${nlHead}${kinds.length?kinds.join(' '):'なし'}${kinds.length>1?' (混在)':''} / 末尾改行: ${c.trailingNL?'あり':'なし'}`);
     }
@@ -2164,7 +2599,18 @@ const SAMPLE_DEFS = [{
     '受注日。YYYYMMDD形式（例: 20260401）。\n未来日付は不可。',
     '税込金額。整数のみ（カンマ・小数点不可）。\nマイナスは返品時のみ許容。',
     '受注区分。1=通常 / 2=返品。\nそれ以外の値は取込エラー。'
+  ],
+  rules:[
+    {col:1, required:true, pattern:'^C?\\d+$'},
+    {col:2, type:'date', required:true},
+    {col:3, type:'number'},
+    {col:4, pattern:'^[12]$'}
   ]
+},{
+  name:'固定長IFの例', match:'IF_FIXED_*', encoding:'shift_jis',
+  headers:[['伝票番号','取引先名','数量','単価']],
+  widths:[6, 20, 5, 9],
+  rules:[{col:1, required:true}, {col:3, type:'number'}]
 }];
 function openSettings(){
   $('#lsWarn').classList.toggle('hiddenCtl', LS.ok);
@@ -2285,6 +2731,7 @@ function initDnD(){
 
 /* ---------- 起動 ---------- */
 initToolbar(); initSettings(); initDnD(); initBinSelect();
+$('#helpVer').textContent = 'v'+APP_VERSION;
 applyDisplaySettings();
 renderAll();
 if(!LS.ok) console.warn('localStorage が使用できません。設定はセッション内のみ有効です。');

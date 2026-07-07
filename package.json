@@ -1,0 +1,14 @@
+{
+  "name": "iffileviewer",
+  "version": "1.2.0",
+  "private": true,
+  "description": "IFファイルビューア（単一HTML）の開発用ツール一式。配布物は IFファイルビューア.html のみ",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "typecheck": "node tools/typecheck.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1",
+    "typescript": "^6.0.3"
+  }
+}
