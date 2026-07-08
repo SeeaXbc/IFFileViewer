@@ -295,6 +295,9 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
       <div><b>登録済みの任意区切り文字</b>
         <div id="delimList" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
       </div>
+      <div><b>登録済みヘッダー定義</b>
+        <div id="defList" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center"></div>
+      </div>
       <div>
         <b>仮想ヘッダー定義（JSON配列）</b>
         <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。details（任意）に列ごとの詳細説明を並べると、ヘッダーのマウスオーバーでツールチップ表示されます（\n で複数行）。</div>
@@ -340,6 +343,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li><code>match</code>（ファイル名のワイルドカード）に一致した定義が自動適用されます。複数一致時は先頭優先で、「ヘッダー定義」から切替可能。</li>
         <li>定義の <code>delimiter</code> / <code>encoding</code> は開いたときの初期値になり、手動変更が常に優先。BOM付きファイルはBOM判定が優先されます。</li>
         <li><b>列詳細</b>：定義に <code>details</code>（列ごとの説明文の配列。任意）を書くと、該当列のヘッダーに点線下線が付き、<b>マウスオーバーで詳細をツールチップ表示</b>します。<code>\n</code> で複数行にできます。表示層のみでデータ・コピーには影響しません。</li>
+        <li><b>定義の削除</b>：⚙設定の「登録済みヘッダー定義」で定義ごとの <code>✕</code> をクリック（「すべて削除」で一括）。削除した定義を使用中のタブは「自動」に戻ります。編集モード中のタブが使っている定義は削除できません（先に編集モードを終了してください）。</li>
       </ul>
 
       <h3>固定長ファイル（COBOL系レイアウト）</h3>
@@ -488,7 +492,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.2.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.3.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -612,6 +616,8 @@ async function openFiles(fileList){
           defs = arr.concat(defs);
           LS.set('ifv_defs', defs);
           toast(`ヘッダー定義 ${arr.length} 件を読み込みました（${f.name}）`);
+          /* 先頭に追加されるため、手動選択済みのインデックスをずらして維持する */
+          tabs.forEach(t=>{ if(typeof t.defSel==='number') t.defSel += arr.length; });
           tabs.forEach(t=>{ if(t.defSel==='auto') t._dirtyView=true; });
           if(curTab()) renderAll();
           continue;
@@ -1968,6 +1974,8 @@ function enterEditMode(tab){
   const ok = sp.segs.length===c.lines.length
     && sp.segs.map((s,i)=>c.lines[i]+s.termStr).join('') === c.text;
   if(!ok){ toast('このファイルは編集モードを開始できません（行の対応付けに失敗しました）'); return; }
+  /* 「自動」の定義を具体的な選択に固定：編集中に定義の追加で一致先が変わるのを防ぐ */
+  if(tab.defSel==='auto'){ const di = matchDef(tab.name); tab.defSel = di>=0 ? di : 'none'; }
   tab.edit = { enc, segs:sp.segs, bom:sp.bom, edits:new Map(), lineOk:new Map(),
                hist:[], histI:0, unsaved:false, saveName:tab.name };
   restoreSaveDir();
@@ -2619,9 +2627,72 @@ function openSettings(){
   $('#fontCustom').value = settings.fontCustom||'';
   $('#fontCustom').classList.toggle('hiddenCtl', settings.font!=='custom');
   renderDelimList();
+  renderDefList();
   $('#defsTa').value = JSON.stringify(defs, null, 2);
   $('#defsErr').textContent='';
   $('#modalBack').classList.add('show');
+}
+
+/* --- ヘッダー定義の一覧・削除(4.3) --- */
+function defIndexFor(tab){
+  /* タブが現在使用している定義のインデックス（なしは -1） */
+  if(tab.defSel==='none') return -1;
+  if(tab.defSel==='auto') return matchDef(tab.name);
+  return typeof tab.defSel==='number' ? tab.defSel : -1;
+}
+function renderDefList(){
+  const box = $('#defList'); box.textContent='';
+  if(!defs.length){
+    const n = el('span',null,'（なし — 下のJSONを編集するか、定義JSONファイルをドロップで登録できます）');
+    n.style.cssText='color:var(--sub);font-size:12px';
+    box.appendChild(n);
+    return;
+  }
+  defs.forEach((d,i)=>{
+    const chip = el('span','chip');
+    const label = el('span',null, (d.name||d.match) + (d.widths?'［固定長］':''));
+    label.title = `match: ${d.match}`;
+    chip.appendChild(label);
+    const x = el('button','x','✕');
+    x.title = 'この定義を削除';
+    x.onclick = ()=>deleteDef(i);
+    chip.appendChild(x);
+    box.appendChild(chip);
+  });
+  if(defs.length>1){
+    const all = el('button',null,'すべて削除');
+    all.onclick = ()=>deleteDef(-1);
+    box.appendChild(all);
+  }
+}
+function deleteDef(i){
+  /* i=-1 で全削除。編集モード中のタブが使用している定義は削除不可（列構造が変わるため） */
+  const targets = i<0 ? defs.map((_,k)=>k) : [i];
+  const locked = tabs.find(t=>t.edit && targets.includes(defIndexFor(t)));
+  if(locked){
+    toast(`定義を使用中の編集タブ「${locked.name}」があります。編集モードを終了してから削除してください`);
+    return;
+  }
+  const delName = i>=0 ? (defs[i].name||defs[i].match) : '';
+  if(i>=0){ if(!confirm(`ヘッダー定義「${delName}」を削除しますか？`)) return; }
+  else { if(!confirm(`ヘッダー定義 ${defs.length} 件をすべて削除しますか？`)) return; }
+  if(i<0) defs = [];
+  else defs.splice(i,1);
+  LS.set('ifv_defs', defs);
+  /* 開いているタブの手動選択インデックスを補正し、再パースさせる */
+  tabs.forEach(t=>{
+    if(typeof t.defSel==='number'){
+      if(i<0 || t.defSel===i) t.defSel='auto';
+      else if(t.defSel>i) t.defSel--;
+    }
+    t._cache.cellsKey = null;
+    if(t.valOn && !valRules(t).length) t.valOn = false;  // 検査ルールが消えたら検査もOFF
+  });
+  $('#defsTa').value = JSON.stringify(defs, null, 2);
+  $('#defsErr').textContent='';
+  renderDefList();
+  renderAll(true);
+  toast(i<0 ? 'ヘッダー定義をすべて削除しました' : `定義「${delName}」を削除しました`);
 }
 function renderDelimList(){
   const box = $('#delimList'); box.textContent='';
@@ -2657,7 +2728,14 @@ function initSettings(){
     catch(e){ $('#defsErr').textContent='JSONエラー: '+e.message; return; }
     if(!Array.isArray(j)) j=[j];
     if(j.length && !looksLikeDefs(j)){ $('#defsErr').textContent='各定義に match(文字列) と headers(配列) が必要です。'; return; }
+    const changed = JSON.stringify(j) !== JSON.stringify(defs);
+    if(changed){
+      const locked = tabs.find(t=>t.edit && defIndexFor(t)>=0);
+      if(locked){ $('#defsErr').textContent=`定義を使用中の編集タブ「${locked.name}」があります。編集モードを終了してから定義を変更してください。`; return; }
+    }
     defs = j; LS.set('ifv_defs', defs);
+    /* 手動選択インデックスが新しい定義数を超えたら自動へ戻す */
+    tabs.forEach(t=>{ if(typeof t.defSel==='number' && t.defSel>=defs.length) t.defSel='auto'; });
     settings.contDot = $('#chkContDot').checked;
     settings.font = $('#selFont').value;
     settings.fontCustom = $('#fontCustom').value;

@@ -112,6 +112,49 @@ test('列コピー: Alt+クリックで列の全値がクリップボードに�
   assert.match(text, /^20260701\n/);
 });
 
+test('定義の削除: インデックス補正・使用中タブの自動フォールバック・編集モード中はブロック', async () => {
+  const onDialog = d => d.accept();
+  page.on('dialog', onDialog);
+  const r = await page.evaluate(() => {
+    /* 3件の定義を登録。IF_ORDER_* には2番目(index1)が自動一致する */
+    defs = [
+      { name: 'DefA', match: 'ZZZ_A_*', headers: [['a']] },
+      { name: 'DefB', match: 'IF_ORDER_*', headers: [['b']] },
+      { name: 'DefC', match: 'ZZZ_C_*', headers: [['c']] },
+    ];
+    const t = curTab();               // IF_ORDER_feat タブ
+    t.defSel = 'auto'; t._cache.cellsKey = null; renderAll(true);
+
+    /* 編集モード中は使用定義の削除がブロックされる */
+    enterEditMode(t);
+    const defSelPinned = t.defSel;    // 「自動」でなく具体的な選択に固定される
+    deleteDef(1);                     // confirmは出る前にブロックされる想定
+    const blockedLen = defs.length;
+    exitEditMode(t);
+
+    /* 通常時: index0 を削除 → 手動選択(1)が繰り下がって同じ定義を指し続ける */
+    deleteDef(0);                     // dialogハンドラがconfirmを承認
+    const afterLen = defs.length;
+    const stillDefB = resolvedDef(t)?.name;
+    const defSelNow = t.defSel;
+
+    /* 使用中の定義そのものを削除 → 自動へ戻る */
+    deleteDef(0);                     // DefB を削除
+    const fallback = t.defSel;
+    const restLen = defs.length;
+    defs = []; LS.set('ifv_defs', defs); t.defSel = 'auto'; renderAll(true);
+    return { defSelPinned, blockedLen, afterLen, stillDefB, defSelNow, fallback, restLen };
+  });
+  page.off('dialog', onDialog);
+  assert.equal(r.defSelPinned, 1, '編集開始で自動→具体的な選択に固定');
+  assert.equal(r.blockedLen, 3, '編集モード中は削除がブロックされる');
+  assert.equal(r.afterLen, 2);
+  assert.equal(r.stillDefB, 'DefB', '手動選択はインデックス補正で同じ定義を指す');
+  assert.equal(r.defSelNow, 0);
+  assert.equal(r.fallback, 'auto', '使用中定義の削除で自動へ戻る');
+  assert.equal(r.restLen, 1);
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });
