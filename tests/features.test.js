@@ -155,6 +155,45 @@ test('定義の削除: インデックス補正・使用中タブの自動フォ
   assert.equal(r.restLen, 1);
 });
 
+test('貼り付け: TSVテキストがタブ区切りの新規タブとして開き、入力欄フォーカス中は開かない', async () => {
+  const r = await page.evaluate(() => {
+    const dispatch = () => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '商品\t数量\nりんご\t3\nみかん\t12');
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    };
+    const before = tabs.length;
+    dispatch();
+    const opened = tabs.length === before + 1;
+    const t = curTab();
+    const c = prepText(t);
+    const info = {
+      opened,
+      name: t.name,
+      enc: t.encSel,
+      delims: [...t.delims],
+      lines: c.lines.length,
+      row1: c.rows[1],
+    };
+    /* 入力欄フォーカス中は通常の貼り付け動作（タブを開かない） */
+    const sb = $('#searchBox'); sb.disabled = false; sb.focus();
+    const dt2 = new DataTransfer();
+    dt2.setData('text/plain', 'X\tY');
+    sb.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt2, bubbles: true, cancelable: true }));
+    info.notOpenedOnInput = tabs.length === before + 1;
+    sb.blur();
+    closeTab(tabs.length - 1);   // 後片付け
+    return info;
+  });
+  assert.equal(r.opened, true, '新規タブが開く');
+  assert.match(r.name, /^貼り付け\d+$/);
+  assert.equal(r.enc, 'utf-8');
+  assert.deepEqual(r.delims, ['\t'], 'タブ区切りが自動適用される');
+  assert.equal(r.lines, 3);
+  assert.deepEqual(r.row1, ['りんご', '3']);
+  assert.equal(r.notOpenedOnInput, true, '入力欄への貼り付けではタブを開かない');
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });

@@ -184,6 +184,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 <div id="tabbar">
   <button id="btnOpen" title="ファイルを開く">📂 開く</button>
+  <button id="btnPaste" title="クリップボードの内容を新しいタブで開く（Ctrl+V でも可）">📋 貼り付け</button>
 </div>
 
 <div id="toolbar">
@@ -266,6 +267,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
     <div id="drop">
       <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
       <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+      <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
       <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
       <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
     </div>
@@ -326,6 +328,8 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>画面へ<b>ドラッグ&amp;ドロップ</b>、または左上の「📂 開く」から選択（複数可）。ファイルはタブで切り替えます。</li>
         <li>開いた直後はファイル内容から<b>テキスト/バイナリを自動判定</b>。ツールバーの「モード」でいつでも切替できます。</li>
         <li>文字コードは自動判定（BOM＋推定）。化ける場合は「文字コード」で明示指定してください。</li>
+        <li><b>クリップボードから開く</b>：画面上で <kbd>Ctrl+V</kbd>（または「📋 貼り付け」ボタン）で、コピーした内容を新しいタブとして開きます。Excelの範囲コピーはタブ区切りを自動適用してそのままグリッド表示できます。エクスプローラーで<b>ファイルをコピー</b>して貼り付けた場合は、通常のファイルと同じ扱い（バイト列そのまま）で開きます。</li>
+        <li>※テキストの貼り付けはコピー元でデコード済みのため、<b>元ファイルのバイト列・文字コードは保持されません</b>（UTF-8として取り込み）。文字化けやバイト単位の調査が目的の場合はファイルとして開いてください。</li>
       </ul>
 
       <h3>テキストモード</h3>
@@ -492,7 +496,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.3.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.4.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -628,6 +632,41 @@ async function openFiles(fileList){
     tabs.push(tab); cur = tabs.length-1;
   }
   renderTabs(); renderAll();
+}
+
+/* --- クリップボードから開く ---
+   テキストはコピー元でデコード済み（元バイト・元文字コードは失われている）ため、
+   UTF-8で符号化したバイト列を合成して通常タブとして開く。
+   ファイルのコピー（エクスプローラー等）は実バイトが取れるので openFiles に渡す */
+let pasteSeq = 0;
+function openPastedText(text){
+  if(!text){ toast('クリップボードにテキストがありません'); return; }
+  const bytes = new TextEncoder().encode(text);
+  const name = `貼り付け${++pasteSeq}`;
+  const tab = createTab(name, bytes);
+  tab.encSel = 'utf-8';                          // 合成バイト列はUTF-8（表示を明確化）
+  if(text.includes('\t')) tab.delims = ['\t'];   // Excelの範囲コピー(TSV)はタブ区切りを初期適用
+  tabs.push(tab); cur = tabs.length-1;
+  renderTabs(); renderAll();
+  toast(`クリップボードの内容を「${name}」として開きました（${bytes.length.toLocaleString()} バイト・UTF-8）`);
+}
+function handlePaste(e){
+  const t = e.target;
+  if(t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;  // 入力欄は通常の貼り付け
+  const dt = e.clipboardData;
+  if(!dt) return;
+  if(dt.files && dt.files.length){ e.preventDefault(); openFiles([...dt.files]); return; }
+  const text = dt.getData('text/plain');
+  if(text){ e.preventDefault(); openPastedText(text); }
+}
+async function pasteFromClipboardButton(){
+  /* ボタン経由は Async Clipboard API。権限がない環境は Ctrl+V を案内 */
+  try{
+    const text = await navigator.clipboard.readText();
+    openPastedText(text);
+  }catch(err){
+    toast('クリップボードを読み取れませんでした。画面上で Ctrl+V を押してください');
+  }
 }
 
 function createTab(name, bytes){
@@ -2297,6 +2336,7 @@ function initToolbar(){
 
   $('#btnOpen').onclick = ()=>$('#fileInput').click();
   $('#fileInput').onchange = e=>{ openFiles([...e.target.files]); e.target.value=''; };
+  $('#btnPaste').onclick = pasteFromClipboardButton;
 
   $('#btnText').onclick = ()=>setMode('text');
   $('#btnBin').onclick  = ()=>setMode('bin');
@@ -2791,6 +2831,7 @@ function buildDropHint(){
   d.innerHTML = `
     <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
     <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+    <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
     <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
     <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>`;
   return d;
@@ -2805,6 +2846,7 @@ function initDnD(){
     const files = [...(e.dataTransfer?.files||[])];
     if(files.length) openFiles(files);
   });
+  document.addEventListener('paste', handlePaste);  // Ctrl+V でクリップボードから開く
 }
 
 /* ---------- 起動 ---------- */
