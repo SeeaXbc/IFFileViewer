@@ -4,6 +4,8 @@
   "private": true,
   "description": "IFファイルビューア（単一HTML）の開発用ツール一式。配布物は IFファイルビューア.html のみ",
   "scripts": {
+    "build": "node tools/build.mjs",
+    "pretest": "node tools/build.mjs",
     "test": "node --test \"tests/*.test.js\"",
     "typecheck": "node tools/typecheck.mjs"
   },

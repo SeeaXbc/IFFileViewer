@@ -450,7 +450,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 /* =====================================================================
  * IFファイルビューア — 単一HTML・読み取り専用
  * 要件定義書: IFファイルビューア_要件定義書.md
- * 型検査: npm run typecheck（tools/typecheck.mjs がこの<script>を抽出してtscにかける）
+ * 開発: src/ を編集し npm run build で単一HTMLを生成（tools/build.mjs）。型検査: npm run typecheck
  * =================================================================== */
 
 /* ---------- 主要データ構造（JSDoc型。エディタの補完とtsc検査に使用） ----------

@@ -1,8 +1,8 @@
 /**
- * 単一HTML内の <script> を抽出して tsc --checkJs で型検査する。
- * 既存コードを一括修正せずに導入するため「ベースライン方式」を採る：
- *   - エラー件数が tools/tsc-baseline.json の件数を超えたら失敗（新規エラーの混入を防ぐ）
- *   - 件数が減ったらベースラインの更新を促す（実行時に --update で更新）
+ * src/js/*.js を tsc --checkJs で型検査する（全ファイル同時コンパイル＝
+ * 共有グローバルスコープの相互参照が解決される）。
+ * ベースライン方式: エラー件数が tools/tsc-baseline.json を超えたら失敗。
+ * 件数が減ったら --update でベースラインを下げる（ラチェット）。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,24 +12,19 @@ import { spawnSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const HTML = path.join(ROOT, 'IFファイルビューア.html');
-const OUTDIR = path.join(ROOT, '.typecheck');
 const BASELINE = path.join(ROOT, 'tools', 'tsc-baseline.json');
 
-const html = fs.readFileSync(HTML, 'utf8');
-const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-if (!scripts.length) { console.error('HTMLから<script>を抽出できませんでした'); process.exit(1); }
-
-fs.mkdirSync(OUTDIR, { recursive: true });
-const jsPath = path.join(OUTDIR, 'app.js');
-fs.writeFileSync(jsPath, scripts.join('\n'));
+const jsDir = path.join(ROOT, 'src', 'js');
+const files = fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort()
+  .map(f => path.join('src', 'js', f));
+if (!files.length) { console.error('src/js/*.js が見つかりません'); process.exit(1); }
 
 const tscBin = require.resolve('typescript/bin/tsc');
 const res = spawnSync(process.execPath, [
   tscBin, '--noEmit', '--allowJs', '--checkJs',
   '--target', 'es2022', '--lib', 'es2022,dom,dom.iterable',
   '--strict', 'false',
-  jsPath,
+  ...files,
 ], { encoding: 'utf8', cwd: ROOT });
 
 const out = (res.stdout || '') + (res.stderr || '');

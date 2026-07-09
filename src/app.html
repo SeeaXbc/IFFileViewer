@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IFファイルビューア</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --border:#d5d9e0; --fg:#1f2430; --sub:#6b7280;
+  --accent:#2563eb; --accent-bg:#eff4ff;
+  --mono:"BIZ UDGothic","BIZ UDゴシック","MS Gothic","ＭＳ ゴシック",monospace;
+  --dgap:0ch;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;font:13px/1.5 "Segoe UI","Meiryo",sans-serif;color:var(--fg);background:var(--bg)}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:2px 10px;cursor:pointer}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+select,input[type=text]{border:1px solid var(--border);border-radius:4px;padding:2px 6px;background:var(--panel)}
+label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-select:none}
+
+/* ---- toolbar ---- */
+#tabbar{display:flex;align-items:flex-end;gap:2px;padding:6px 8px 0;background:var(--bg);overflow-x:auto;flex:none}
+.tab{display:inline-flex;align-items:center;gap:6px;max-width:240px;padding:4px 8px 4px 12px;border:1px solid var(--border);
+  border-bottom:none;border-radius:6px 6px 0 0;background:#e9ecf1;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--panel);font-weight:600}
+.tab .name{overflow:hidden;text-overflow:ellipsis}
+.tab .x{border:none;background:none;padding:0 4px;border-radius:3px;color:var(--sub)}
+.tab .x:hover{background:#d0d5dd;color:#000}
+#btnOpen{margin-left:6px;flex:none}
+#toolbar,#toolbar2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
+  border-top:1px solid var(--border);flex:none}
+#toolbar2{border-top:1px dashed var(--border);padding-top:5px;padding-bottom:5px;background:#fafbfd}
+#toolbar2+#main{border-top:1px solid var(--border)}
+#toolbar .grp,#toolbar2 .grp{display:inline-flex;align-items:center;gap:5px}
+#toolbar .lbl,#toolbar2 .lbl{color:var(--sub);font-size:12px}
+#delimChips{display:inline-flex;gap:3px;flex-wrap:wrap}
+.dchip{padding:1px 8px;border-radius:10px;font-size:12px;font-family:var(--mono)}
+.dchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#delimAdd{width:56px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:2px 12px}
+.seg button+button{border-left:1px solid var(--border)}
+#searchCount{color:var(--sub);min-width:56px;text-align:center;font-size:12px}
+#searchCount.err{color:#c00}
+#searchBox{width:180px}
+#searchBox.err{border-color:#c00;background:#fff5f5}
+
+/* ---- layout ---- */
+#main{flex:1;display:flex;min-height:0}
+#content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
+  tab-size:1;-moz-tab-size:1} /* タブの描画幅を列幅計算(タブ=1文字)と一致させる */
+#drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  color:var(--sub);font-family:"Segoe UI","Meiryo",sans-serif;white-space:normal}
+#drop .big{font-size:20px}
+body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
+
+/* ---- side panel ---- */
+#side{width:300px;flex:none;border-left:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+#side.hidden{display:none}
+#side h3{margin:0;padding:8px 10px;font-size:13px;border-bottom:1px solid var(--border);background:var(--bg)}
+#mkForm{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+#mkForm .row{display:flex;gap:5px;align-items:center}
+#mkForm input[type=text]{flex:1;min-width:0;font-family:var(--mono)}
+#mkList{flex:1;overflow:auto;padding:4px 0}
+.mk{display:flex;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px dotted #e5e8ee}
+.mk .val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono);white-space:nowrap}
+.mk .cnt{color:var(--sub);font-size:12px;flex:none}
+.mk input[type=color]{width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:3px;background:none;flex:none;cursor:pointer}
+.mk .x{border:none;background:none;color:var(--sub);padding:0 3px}
+.mk.off .val{opacity:.35;text-decoration:line-through}
+.mk .kind{font-size:11px;color:var(--sub);border:1px solid var(--border);border-radius:3px;padding:0 4px;flex:none}
+
+/* ---- status bar ---- */
+#status{flex:none;display:flex;gap:16px;flex-wrap:wrap;padding:3px 12px;font-size:12px;color:var(--sub);
+  background:var(--bg);border-top:1px solid var(--border)}
+#status b{color:var(--fg);font-weight:600}
+
+/* ---- text view ---- */
+.hdrblock{position:sticky;top:0;z-index:5;background:#fbf8ee;border-bottom:1px solid #d9d2b8;user-select:none;width:max-content;min-width:100%}
+.hdrrow{color:#7a6a2f}
+.hcell{display:inline-block;overflow:hidden;vertical-align:top;padding:0 1px}
+/* 仮想ヘッダーの列詳細(4.3)：詳細がある列は点線下線で示し、マウスオーバーでツールチップ表示 */
+.hcell.hasdet{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
+#hdrTip{display:none;position:fixed;z-index:50;max-width:min(480px,80vw);padding:6px 10px;
+  background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18);
+  font:12px/1.6 "Segoe UI","Meiryo",sans-serif;color:var(--fg);pointer-events:none}
+#hdrTip.show{display:block}
+#hdrTip .t{font-weight:600;margin-bottom:2px}
+#hdrTip .t .cno{color:var(--sub);font-weight:400;margin-left:6px;font-size:11px}
+#hdrTip .d{white-space:pre-wrap;word-break:break-word}
+.trow{width:max-content;min-width:100%}
+.trow:hover{background:#f2f6ff}
+.ln{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;text-align:right;
+  padding:0 8px 0 4px;margin-right:6px;user-select:none;border-right:1px solid var(--border)}
+.hdrblock .ln{background:#f0ead6;border-right:1px solid #d9d2b8}
+.cell{display:inline-block;vertical-align:top}
+.cell .v{display:inline-block;vertical-align:top}
+.cell .dl{display:inline-block;vertical-align:top;color:#b03060;margin-right:var(--dgap)}
+.xcell{display:inline-block;vertical-align:top;overflow:hidden;border-right:1px solid #e2e5ea;padding:0 4px}
+.hit{background:#b9f;outline:1px solid #96f}
+.hit.cur{background:#f80;color:#fff;outline:1px solid #d60}
+/* 不可視文字の可視化：疑似要素のオーバーレイのみ。DOMテキストは元の文字のままなのでコピーに影響しない */
+.ws{position:relative}
+.ws::before{position:absolute;left:0;top:0;color:#a8b3c2;pointer-events:none}
+.ws-sp::before{content:'·'}
+.ws-tab::before{content:'→'}
+.ws-zsp::before{content:'□'}
+.ws-cr{display:inline-block;min-width:1ch}
+.ws-cr::before{content:'␍';font-size:85%}
+#content .more{display:block;width:max-content;margin:8px;font-family:inherit}
+
+/* ---- binary view ---- */
+.bruler{position:sticky;top:0;z-index:5;background:#eef1f5;border-bottom:1px solid var(--border);color:var(--sub);user-select:none;width:max-content;min-width:100%}
+.brow{width:max-content;min-width:100%}
+.brow:hover{background:#f2f6ff}
+.boff{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;
+  padding:0 8px 0 4px;margin-right:10px;user-select:none;border-right:1px solid var(--border)}
+.bruler .boff{background:#e4e8ee}
+.bhex{margin-right:16px}
+.cont{color:#c0c6cf}
+.bsel{background:#1d4ed8;color:#fff;border-radius:2px}
+#mkList details{border-bottom:1px dotted #e5e8ee}
+#mkList summary{padding:4px 10px;color:var(--sub);cursor:pointer;font-size:12px;user-select:none}
+.chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:4px;padding:1px 4px 1px 8px;font-family:var(--mono)}
+.chip .x{border:none;background:none;color:var(--sub);cursor:pointer;padding:0 2px}
+
+/* ---- modal ---- */
+#modalBack,#helpBack,#profBack{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
+#modalBack.show,#helpBack.show,#profBack.show{display:flex}
+#modal,#helpModal,#profModal{width:min(720px,92vw);max-height:88vh;display:flex;flex-direction:column;background:var(--panel);border-radius:8px;
+  box-shadow:0 8px 30px rgba(0,0,0,.25)}
+#modal header,#helpModal header,#profModal header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+#modal header h2,#helpModal header h2,#profModal header h2{margin:0;font-size:15px}
+#modal .body,#helpModal .body,#profModal .body{padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+#helpModal{width:min(780px,92vw)}
+.help h3{margin:14px 0 4px;font-size:14px;border-bottom:1px solid var(--border);padding-bottom:3px}
+.help h3:first-child{margin-top:0}
+.help p,.help ul{margin:4px 0}
+.help ul{padding-left:22px}
+.help li{margin:2px 0}
+.help table{border-collapse:collapse;margin:4px 0}
+.help th,.help td{border:1px solid var(--border);padding:2px 10px;text-align:left;font-weight:normal}
+.help th{background:var(--bg);color:var(--sub);font-size:12px}
+.help kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--bg);font-family:var(--mono);font-size:12px}
+.help .tag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:0 5px;font-size:12px;color:var(--sub)}
+.help code{background:var(--bg);border-radius:3px;padding:0 4px;font-family:var(--mono)}
+#defsTa{width:100%;height:260px;font-family:var(--mono);font-size:12px;border:1px solid var(--border);border-radius:4px;padding:6px;white-space:pre;resize:vertical}
+#defsErr{color:#c00;font-size:12px;white-space:pre-wrap}
+#lsWarn{color:#b45309;font-size:12px}
+#modal .note{color:var(--sub);font-size:12px}
+#modal footer{display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--border)}
+
+#toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#333;color:#fff;padding:7px 18px;
+  border-radius:20px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60;max-width:80vw}
+#toast.show{opacity:.94}
+
+/* ---- 検査・プロファイル(4.7) / 行フィルタ・ジャンプ ---- */
+.ngcell{outline:1px solid #e03131;outline-offset:-1px;background:#fff0f0}
+.trow.flash,.brow.flash{animation:rowflash 1.2s ease-out}
+@keyframes rowflash{0%{background:#ffec99}100%{background:transparent}}
+.ptable{border-collapse:collapse;font-size:12px}
+.ptable th,.ptable td{border:1px solid var(--border);padding:3px 10px;text-align:left;white-space:nowrap}
+.ptable th{background:var(--bg);color:var(--sub)}
+.ptable td:nth-child(3),.ptable td:nth-child(4),.ptable td:nth-child(5),.ptable td:nth-child(6){text-align:right;font-family:var(--mono)}
+#btnVal.on{background:#e03131;border-color:#e03131;color:#fff}
+#btnFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.fixedTag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:1px 8px;color:var(--sub);font-size:12px;background:var(--bg)}
+
+/* ---- 編集モード(9章) ---- */
+.edcell{outline:1px solid #f59f00;outline-offset:-1px;background:#fff4e6}
+#cellEd{display:none;position:fixed;z-index:55;border:2px solid var(--accent);border-radius:3px;padding:0 3px;
+  background:#fff;color:var(--fg);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#editCtls{display:inline-flex;align-items:center;gap:5px}
+#editCount{color:#b45309;font-size:12px}
+#saveNameIn{width:200px;font-family:var(--mono)}
+#btnEditMode.on{background:#f59f00;border-color:#f59f00;color:#fff}
+.hiddenCtl{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="tabbar">
+  <button id="btnOpen" title="ファイルを開く">📂 開く</button>
+  <button id="btnPaste" title="クリップボードの内容を新しいタブで開く（Ctrl+V でも可）">📋 貼り付け</button>
+</div>
+
+<div id="toolbar">
+  <div class="grp">
+    <span class="lbl">モード</span>
+    <span class="seg"><button id="btnText">テキスト</button><button id="btnBin">バイナリ</button></span>
+  </div>
+  <div class="grp">
+    <span class="lbl">文字コード</span>
+    <select id="selEnc"></select>
+  </div>
+  <div class="grp">
+    <span class="lbl">検索</span>
+    <input type="text" id="searchBox" placeholder="文字列">
+    <label class="chk text-only" title="大文字小文字を区別"><input type="checkbox" id="chkCase" checked>Aa</label>
+    <button id="btnRegex" class="text-only" title="正規表現で検索（クリックで切替）" style="font-family:var(--mono);padding:2px 7px">.*</button>
+    <button id="btnPrev" title="前へ (Shift+F3)">▲</button>
+    <button id="btnNext" title="次へ (F3)">▼</button>
+    <button id="btnFilter" class="text-only" title="検索ヒット行のみを表示（クリックで切替）">⊜ ヒット行</button>
+    <span id="searchCount"></span>
+  </div>
+  <div class="grp" style="margin-left:auto">
+    <span class="lbl">拡大</span>
+    <span class="seg"><button id="zoomOut" title="縮小">−</button><button id="zoomReset" title="クリックで100%に戻す">100%</button><button id="zoomIn" title="拡大">＋</button></span>
+    <button id="btnSide">🖍 マーカー</button>
+    <button id="btnSettings">⚙ 設定</button>
+    <button id="btnHelp" title="使い方">❓ ヘルプ</button>
+  </div>
+</div>
+<div id="toolbar2">
+  <div class="grp">
+    <span class="lbl">区切り</span>
+    <span id="delimChips"></span>
+    <input type="text" id="delimAdd" size="4" placeholder="＋任意" title="任意の区切り文字を追加（Enterで確定・複数登録可）">
+  </div>
+  <div class="grp">
+    <span class="lbl">改行</span>
+    <select id="selNl">
+      <option value="auto">自動判定</option>
+      <option value="crlf">CRLF</option>
+      <option value="lf">LF</option>
+      <option value="cr">CR</option>
+    </select>
+  </div>
+  <div class="grp">
+    <span class="lbl">表示</span>
+    <span class="seg"><button id="btnExcel">グリッド</button><button id="btnEm">桁揃え</button></span>
+  </div>
+  <div class="grp">
+    <span class="lbl">間隔</span>
+    <input type="number" id="selGap" min="0" max="16" step="1" value="0" style="width:52px" title="区切り後の表示間隔（0〜16文字）">
+    <span class="lbl">文字</span>
+  </div>
+  <div class="grp">
+    <button id="btnWs" title="スペース・タブ・全角スペース・CR を可視化（表示のみ。コピーには影響しません）">␣ 可視化</button>
+  </div>
+  <div class="grp">
+    <span class="lbl">ヘッダー定義</span>
+    <select id="selDef" style="max-width:180px"></select>
+  </div>
+  <div class="grp">
+    <button id="btnProf" title="列ごとの統計（空欄・ユニーク・文字数・型推定）を表示">📊 列情報</button>
+    <button id="btnVal" title="ヘッダー定義の rules によるデータ検査（NGセルを赤枠表示）">✔ 検査</button>
+    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
+  </div>
+  <div class="grp">
+    <button id="btnEditMode" title="セル単位の編集モード（元ファイルは変更されません）">✏ 編集</button>
+    <span id="editCtls" class="hiddenCtl">
+      <span class="lbl">保存名</span><input type="text" id="saveNameIn" spellcheck="false" title="保存するファイル名（保存先に同名があれば連番を付けます）">
+      <button id="btnSaveDir"></button>
+      <button id="btnSaveFile">💾 保存</button>
+      <span id="editCount"></span>
+      <button id="btnRevertAll">全て元に戻す</button>
+    </span>
+  </div>
+</div>
+
+<div id="main">
+  <div id="content">
+    <div id="drop">
+      <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
+      <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+      <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
+      <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
+      <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+    </div>
+  </div>
+  <div id="side" class="hidden">
+    <h3 id="sideTitle">マーカー</h3>
+    <div id="mkForm"></div>
+    <div id="mkList"></div>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<div id="hdrTip"></div>
+
+<div id="modalBack">
+  <div id="modal">
+    <header><h2>設定 / 仮想ヘッダー定義</h2><button id="btnModalClose">✕</button></header>
+    <div class="body">
+      <div id="lsWarn" class="hiddenCtl">⚠ この環境では localStorage が使用できません。設定・定義は保存されず、このセッション内のみ有効です。定義はJSONファイルの読み込みで運用してください。</div>
+      <label class="chk"><input type="checkbox" id="chkContDot">バイナリモードの継続セルに「·」を表示する（OFFで空白）</label>
+      <div class="grp"><span>フォント：</span>
+        <select id="selFont"></select>
+        <input type="text" id="fontCustom" class="hiddenCtl" style="width:280px" placeholder='CSS font-family 例: "Sarasa Mono J",monospace'>
+      </div>
+      <div class="note">桁揃え表示・バイナリ表示は「半角:全角＝1:2」の等幅フォントを前提としています（BIZ UDゴシック / MS ゴシック等）。それ以外のフォントでは桁がずれることがあります。</div>
+      <div><b>登録済みの任意区切り文字</b>
+        <div id="delimList" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+      </div>
+      <div><b>登録済みヘッダー定義</b>
+        <div id="defList" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center"></div>
+      </div>
+      <div>
+        <b>仮想ヘッダー定義（JSON配列）</b>
+        <div class="note">match はファイル名のワイルドカード。複数一致時はリストの先頭を自動適用します。delimiter / encoding は初期値として適用され、手動変更が優先されます。details（任意）に列ごとの詳細説明を並べると、ヘッダーのマウスオーバーでツールチップ表示されます（\n で複数行）。</div>
+        <div class="note">widths（任意）：<b>固定長レイアウト</b>のバイト幅の配列（例 <code>[4,8,10]</code>）。指定すると区切り文字ではなくバイト幅で列分割します（全角はエンコーディングに応じたバイト数で計算）。rules（任意）：検査ルールの配列。<code>{"col":列番号(1始まり), "type":"number"|"date", "required":true, "pattern":"正規表現"}</code> を書くと「✔ 検査」ボタンでNGセルを赤枠表示できます。</div>
+      </div>
+      <textarea id="defsTa" spellcheck="false"></textarea>
+      <div id="defsErr"></div>
+      <div class="note">定義JSONファイルから読み込み：<input type="file" id="defsFile" accept=".json"></div>
+    </div>
+    <footer>
+      <button id="btnDefsSample">サンプルを挿入</button>
+      <button id="btnDefsSave" class="on">保存して閉じる</button>
+    </footer>
+  </div>
+</div>
+
+<div id="helpBack">
+  <div id="helpModal">
+    <header><h2>❓ 使い方 <span id="helpVer" style="font-size:11px;color:var(--sub);font-weight:normal"></span></h2><button id="btnHelpClose">✕</button></header>
+    <div class="body help">
+      <h3>このツールについて</h3>
+      <p>システム間連携のIFファイル（拡張子なし可）、CSV/TSV、任意区切りテキスト、バイナリファイルを閲覧する<b>読み取り専用ビューア</b>です。元ファイルへの書き込みは一切行いません。</p>
+
+      <h3>ファイルを開く</h3>
+      <ul>
+        <li>画面へ<b>ドラッグ&amp;ドロップ</b>、または左上の「📂 開く」から選択（複数可）。ファイルはタブで切り替えます。</li>
+        <li>開いた直後はファイル内容から<b>テキスト/バイナリを自動判定</b>。ツールバーの「モード」でいつでも切替できます。</li>
+        <li>文字コードは自動判定（BOM＋推定）。化ける場合は「文字コード」で明示指定してください。</li>
+        <li><b>クリップボードから開く</b>：画面上で <kbd>Ctrl+V</kbd>（または「📋 貼り付け」ボタン）で、コピーした内容を新しいタブとして開きます。Excelの範囲コピーはタブ区切りを自動適用してそのままグリッド表示できます。エクスプローラーで<b>ファイルをコピー</b>して貼り付けた場合は、通常のファイルと同じ扱い（バイト列そのまま）で開きます。</li>
+        <li>※テキストの貼り付けはコピー元でデコード済みのため、<b>元ファイルのバイト列・文字コードは保持されません</b>（UTF-8として取り込み）。文字化けやバイト単位の調査が目的の場合はファイルとして開いてください。</li>
+      </ul>
+
+      <h3>テキストモード</h3>
+      <ul>
+        <li><b>区切り</b>：チップをクリックして有効/無効を切替。<b>複数同時に有効化</b>できます（例：「,」＋「空白」）。「＋任意」欄に入力して<kbd>Enter</kbd>で任意の区切り文字を登録、登録チップは<b>右クリックで登録解除</b>。</li>
+        <li><b>改行</b>：自動判定のほか CRLF / LF / CR を明示指定できます。指定した改行のみで行分割し、他の改行文字はデータとして残ります（␣可視化で <code>␍</code> として確認可能）。</li>
+        <li><b>表示</b>：<span class="tag">グリッド</span> セル分割・区切り非表示／<span class="tag">桁揃え</span> 区切りを表示したまま列幅を揃える。</li>
+        <li><b>間隔</b>：区切りの後ろに表示上の間隔（0〜16文字）を追加。表示のみでコピーには影響しません。</li>
+        <li><b>␣ 可視化</b>：スペース <code>·</code>、タブ <code>→</code>、全角スペース <code>□</code>、CR <code>␍</code> を淡色表示。コピーすると元の文字が得られます。</li>
+      </ul>
+
+      <h3>仮想ヘッダー定義</h3>
+      <p>列の説明行を表示層に重ねる機能です（実データは変更しません）。定義は⚙設定にJSONで登録するか、定義JSONファイルをドロップします。</p>
+      <ul>
+        <li><code>match</code>（ファイル名のワイルドカード）に一致した定義が自動適用されます。複数一致時は先頭優先で、「ヘッダー定義」から切替可能。</li>
+        <li>定義の <code>delimiter</code> / <code>encoding</code> は開いたときの初期値になり、手動変更が常に優先。BOM付きファイルはBOM判定が優先されます。</li>
+        <li><b>列詳細</b>：定義に <code>details</code>（列ごとの説明文の配列。任意）を書くと、該当列のヘッダーに点線下線が付き、<b>マウスオーバーで詳細をツールチップ表示</b>します。<code>\n</code> で複数行にできます。表示層のみでデータ・コピーには影響しません。</li>
+        <li><b>定義の削除</b>：⚙設定の「登録済みヘッダー定義」で定義ごとの <code>✕</code> をクリック（「すべて削除」で一括）。削除した定義を使用中のタブは「自動」に戻ります。編集モード中のタブが使っている定義は削除できません（先に編集モードを終了してください）。</li>
+      </ul>
+
+      <h3>固定長ファイル（COBOL系レイアウト）</h3>
+      <p>定義に <code>widths</code>（各列の<b>バイト幅</b>の配列。例 <code>[6,20,5,9]</code>）を書くと、区切り文字ではなく<b>バイト幅で列分割</b>します。全角文字は文字コードに応じたバイト数（Shift-JIS/EUC=2、UTF-8=3 等）で計算されます。</p>
+      <ul>
+        <li>定義の合計幅より長い行は、超過分が「余り列」として右端に表示されます（レイアウト崩れの発見に有効）。</li>
+        <li>編集モードでは<b>フィールドのバイト幅が自動で維持</b>されます（短い値は右側を半角スペースでパディング、幅超過は確定拒否）。</li>
+      </ul>
+
+      <h3>列情報（📊）と検査（✔）</h3>
+      <ul>
+        <li><b>📊 列情報</b>：列ごとの「値あり／空欄／ユニーク数／文字数の範囲／型推定（数値・日付）」を一覧表示。想定外の空欄や桁ズレを目視より速く発見できます。</li>
+        <li><b>✔ 検査</b>：定義に <code>rules</code> を書いたファイルで表示されます。<code>{"col":2, "type":"date", "required":true}</code> のように列番号（1始まり）ごとに <code>type</code>（number/date）・<code>required</code>・<code>pattern</code>（正規表現）を指定でき、NGセルを<b>赤枠＋理由ツールチップ</b>で表示。「NG行へ▼」で順にジャンプします。</li>
+      </ul>
+
+      <h3>マーカー（🖍）</h3>
+      <ul>
+        <li><b>テキスト</b>：文字列（Aa切替可）・行番号・列番号（<code>3,10-20</code> の範囲指定可）をハイライト。色・ON/OFF・件数表示付き。</li>
+        <li>文字列マーカーは追加フォームの <code>.*</code> ボタンで<b>正規表現マーカー</b>にできます（構文・行単位の扱いは検索と同じ。下の正規表現サンプル参照）。重い正規表現を登録したままにすると再描画が遅くなることがあります。</li>
+        <li><b>バイナリ</b>：16進バイト列（例 <code>0D 0A</code>）を入力してマーク。HEX側とデコード側の両方に連動します。</li>
+        <li>バイナリには <b>制御コード候補</b>（STX/ETX/CRLF/NUL等19種）をOFF状態でプリセット済み。折りたたみを開いてONにしてください。</li>
+      </ul>
+
+      <h3>バイナリモード</h3>
+      <ul>
+        <li>左からオフセット／HEX（16バイト/行）／指定文字コードでのデコード結果。全角などのマルチバイト文字は<b>先頭バイトの位置</b>に表示され、後続バイトは <code>·</code>（継続）になります。</li>
+        <li>HEX側・デコード側の<b>クリックで対応箇所を相互ハイライト</b>。マルチバイト文字は全バイトが選択され、ステータスバーに詳細表示。再クリックか<kbd>Esc</kbd>で解除。</li>
+        <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
+      </ul>
+
+      <h3>編集モード（✏）</h3>
+      <p>テキストモードで「✏ 編集」をONにすると、<b>セル単位で値を編集</b>して別ファイルとして保存できます。<b>元ファイルは一切変更されません</b>（保存は常に保存先フォルダへの新規ファイル作成）。</p>
+      <ul>
+        <li>セルを<b>ダブルクリック</b>で編集開始。<kbd>Enter</kbd>確定 / <kbd>Esc</kbd>取消 / <kbd>Tab</kbd>で隣のセルへ。</li>
+        <li>編集済みセルは<b>橙色の枠</b>で表示され、<b>右クリックで個別に元に戻せます</b>。「全て元に戻す」で一括取消。<kbd>Ctrl+Z</kbd>/<kbd>Ctrl+Y</kbd> で編集操作単位のUndo/Redoができます。</li>
+        <li>編集中は区切り文字・改行・文字コード・ヘッダー定義・モードの変更がロックされます（列構造とバイト完全性を守るため）。区切り文字や改行を含む値、選択中の文字コードで表現できない文字（例: Shift-JISにない文字）は確定できません。</li>
+        <li><b>バイト完全性の保証</b>：保存ファイルでは、編集していない行・改行コード・BOMは元ファイルのバイトを無加工でコピーします。文字コードもそのまま維持されます。デコードが非可逆な行（不正バイトを含む行など）は編集不可になります。</li>
+        <li><b>保存</b>：初回に「📁 保存先...」でフォルダを選ぶと、以後は確認なしで保存できます（フォルダはブラウザに記憶され、再起動後は権限確認が1回入ることがあります）。保存名は入力欄で変更でき、同名ファイルがあれば <code>名前 (1)</code> のように連番を付けます。フォルダ保存は Chrome/Edge のみ対応です。</li>
+      </ul>
+
+      <h3>検索</h3>
+      <ul>
+        <li>テキストモードは文字列（Aaで大文字小文字）、バイナリモードは16進パターン（例 <code>0D 0A</code>）。</li>
+        <li><b><code>.*</code> ボタンで正規表現検索に切替</b>（VSCodeの検索と同じイメージ）。Aa（大文字小文字）は正規表現でも有効です。</li>
+        <li>正規表現は<b>行単位</b>で照合します（複数行にまたがる一致はできません）。パターンが不正な場合は件数欄に「無効」と表示されます。</li>
+        <li><kbd>Enter</kbd>/<kbd>F3</kbd>で次へ、<kbd>Shift+F3</kbd>で前へ。未表示領域のヒットへは表示を拡張してジャンプします。</li>
+        <li><b>⊜ ヒット行</b>：検索ヒットを含む行だけに絞って表示します（grepイメージ）。行番号は元ファイルのまま表示されます。</li>
+      </ul>
+
+      <h3>ジャンプ・列コピー</h3>
+      <ul>
+        <li><kbd>Ctrl+G</kbd>：テキストモードは<b>行番号</b>、バイナリモードは<b>オフセット</b>（10進または <code>0x</code> 付き16進）へジャンプします。</li>
+        <li><b>列コピー</b>：ヘッダーセルの<b>クリック</b>、またはデータセルの <kbd>Alt</kbd>+クリックで、その列の全行の値をクリップボードへコピーします（1行1値）。</li>
+      </ul>
+
+      <h3>正規表現サンプル</h3>
+      <table>
+        <tr><th>パターン</th><th>意味</th></tr>
+        <tr><td><code>\d{8}</code></td><td>8桁の数字（YYYYMMDD形式の日付など）</td></tr>
+        <tr><td><code>^C\d+</code></td><td>行頭が「C＋数字」で始まる行（顧客IDなど）</td></tr>
+        <tr><td><code>,{2,}</code></td><td>カンマの連続（空フィールドの検出）</td></tr>
+        <tr><td><code>^,|,$</code></td><td>行頭または行末のカンマ</td></tr>
+        <tr><td><code>^$</code></td><td>空行</td></tr>
+        <tr><td><code>\s+$</code></td><td>行末の空白（見えないゴミの検出）</td></tr>
+        <tr><td><code>[^\x00-\x7F]+</code></td><td>非ASCII文字（全角文字・半角カナなど）の連続</td></tr>
+        <tr><td><code>TOKYO|OSAKA</code></td><td>いずれかの語を含む（OR検索）</td></tr>
+        <tr><td><code>^(?!C).</code></td><td>「C」で始まらない行（否定先読み）</td></tr>
+        <tr><td><code>^([^,]*,){3}9</code></td><td>4列目が「9」で始まる行（カンマ区切りの場合）</td></tr>
+      </table>
+      <p class="tag" style="border:none;padding:0">※ JavaScript (ECMAScript) の正規表現構文です。<code>.</code> や <code>|</code> などを文字として検索する場合は <code>\.</code> のようにエスケープするか、通常検索に切り替えてください。</p>
+
+      <h3>ショートカット</h3>
+      <table>
+        <tr><th>キー</th><th>動作</th></tr>
+        <tr><td><kbd>Ctrl+F</kbd></td><td>検索ボックスへフォーカス</td></tr>
+        <tr><td><kbd>F3</kbd> / <kbd>Shift+F3</kbd></td><td>次を検索 / 前を検索</td></tr>
+        <tr><td><kbd>Ctrl+G</kbd></td><td>行番号（テキスト）/ オフセット（バイナリ）へジャンプ</td></tr>
+        <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd></td><td>編集モード中のUndo / Redo</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>ダイアログを閉じる / バイナリの選択解除</td></tr>
+      </table>
+
+      <h3>設定の保存について</h3>
+      <p>ヘッダー定義・登録区切り文字・フォント・拡大率などはブラウザの localStorage に保存されます。環境によって localStorage が使えない場合、設定は保存されませんが閲覧機能はすべて動作します（ヘッダー定義はJSONファイルのドロップで代用できます）。</p>
+    </div>
+  </div>
+</div>
+
+<div id="profBack">
+  <div id="profModal">
+    <header><h2>📊 列情報</h2><button id="btnProfClose">✕</button></header>
+    <div class="body" id="profBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="fileInput" multiple style="display:none">
+
+<script>
+//@SCRIPT@
+</script>
+</body>
+</html>
