@@ -257,6 +257,7 @@ function ensureCellEd(){
   if(_cellEd) return _cellEd;
   _cellEd = el('input'); _cellEd.id='cellEd'; _cellEd.spellcheck=false;
   _cellEd.addEventListener('keydown', e=>{
+    if(e.isComposing || e.keyCode===229) return;  // 日本語IMEの変換確定Enterでは確定しない
     if(e.key==='Enter'){ e.preventDefault(); closeCellEd(true); }
     else if(e.key==='Escape'){ e.preventDefault(); closeCellEd(false); }
     else if(e.key==='Tab'){ e.preventDefault(); const ctx=_cellEdCtx; if(closeCellEd(true)) moveCellEd(ctx, e.shiftKey?-1:1); }

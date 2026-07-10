@@ -194,6 +194,37 @@ test('貼り付け: TSVテキストがタブ区切りの新規タブとして開
   assert.equal(r.notOpenedOnInput, true, '入力欄への貼り付けではタブを開かない');
 });
 
+test('IME変換確定のEnterではセル確定・検索が発火しない', async () => {
+  await openBytes(page, 'IME_TEST', readSample('IF_ORDER_20260705'));
+  await page.waitForSelector('.trow');
+  const r = await page.evaluate(async () => {
+    const t = curTab();
+    enterEditMode(t);
+    const cell = document.querySelector('.trow[data-l="0"] [data-c="0"]');
+    openCellEditor(t, cell, 0, 0);
+    const inp = document.querySelector('#cellEd');
+    inp.value = 'C900';
+    /* IME変換確定のEnter（isComposing=true）→ 確定されないこと */
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    const stillOpen = inp.style.display !== 'none';
+    const notCommitted = t._cache.rows[0][0] !== 'C900';
+    /* 通常のEnter → 確定されること */
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const committed = t._cache.rows[0][0] === 'C900';
+    revertAllEdits(t); exitEditMode(t);
+    /* 検索ボックス: isComposingのEnterでは検索しない */
+    const sb = $('#searchBox'); sb.value = 'C00';
+    sb.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    const noSearch = t.curHit === -1;
+    return { stillOpen, notCommitted, committed, noSearch };
+  });
+  assert.equal(r.stillOpen, true, 'IME確定Enterではエディタが閉じない');
+  assert.equal(r.notCommitted, true);
+  assert.equal(r.committed, true, '通常のEnterでは確定する');
+  assert.equal(r.noSearch, true);
+  await page.evaluate(() => closeTab(tabs.length - 1));
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });

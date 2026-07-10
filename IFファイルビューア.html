@@ -2253,6 +2253,7 @@ function ensureCellEd(){
   if(_cellEd) return _cellEd;
   _cellEd = el('input'); _cellEd.id='cellEd'; _cellEd.spellcheck=false;
   _cellEd.addEventListener('keydown', e=>{
+    if(e.isComposing || e.keyCode===229) return;  // 日本語IMEの変換確定Enterでは確定しない
     if(e.key==='Enter'){ e.preventDefault(); closeCellEd(true); }
     else if(e.key==='Escape'){ e.preventDefault(); closeCellEd(false); }
     else if(e.key==='Tab'){ e.preventDefault(); const ctx=_cellEdCtx; if(closeCellEd(true)) moveCellEd(ctx, e.shiftKey?-1:1); }
@@ -2497,7 +2498,10 @@ function initToolbar(){
       else { t.binQuery=$('#searchBox').value; rebuildBinSearch(t); refreshRenderedBinRows(t); }
     },250);
   };
-  $('#searchBox').onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); } };
+  $('#searchBox').onkeydown = e=>{
+    if(e.isComposing || e.keyCode===229) return;  // 日本語IMEの変換確定Enterでは検索しない
+    if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); }
+  };
   $('#chkCase').onchange = ()=>{ const t=curTab(); if(!t)return;
     t.queryCase=$('#chkCase').checked; rebuildTextSearch(t); afterSearchChange(t); };
   $('#btnRegex').onclick = ()=>{ const t=curTab(); if(!t)return;

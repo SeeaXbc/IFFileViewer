@@ -74,7 +74,10 @@ function initToolbar(){
       else { t.binQuery=$('#searchBox').value; rebuildBinSearch(t); refreshRenderedBinRows(t); }
     },250);
   };
-  $('#searchBox').onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); } };
+  $('#searchBox').onkeydown = e=>{
+    if(e.isComposing || e.keyCode===229) return;  // 日本語IMEの変換確定Enterでは検索しない
+    if(e.key==='Enter'){ e.preventDefault(); doSearch(e.shiftKey?-1:1); }
+  };
   $('#chkCase').onchange = ()=>{ const t=curTab(); if(!t)return;
     t.queryCase=$('#chkCase').checked; rebuildTextSearch(t); afterSearchChange(t); };
   $('#btnRegex').onclick = ()=>{ const t=curTab(); if(!t)return;
