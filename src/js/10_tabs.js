@@ -29,13 +29,13 @@ async function openFiles(fileList){
           /* 先頭に追加されるため、手動選択済みのインデックスをずらして維持する */
           tabs.forEach(t=>{ if(typeof t.defSel==='number') t.defSel += arr.length; });
           tabs.forEach(t=>{ if(t.defSel==='auto') t._dirtyView=true; });
-          if(curTab()) renderAll();
+          renderAllPanes();
           continue;
         }
       }catch(e){ /* JSONでなければ通常ファイルとして開く */ }
     }
     const tab = createTab(f.name, bytes);
-    tabs.push(tab); cur = tabs.length-1;
+    tabs.push(tab); panes[activePane].cur = tabs.length-1;
   }
   renderTabs(); renderAll();
 }
@@ -52,7 +52,7 @@ function openPastedText(text){
   const tab = createTab(name, bytes);
   tab.encSel = 'utf-8';                          // 合成バイト列はUTF-8（表示を明確化）
   if(text.includes('\t')) tab.delims = ['\t'];   // Excelの範囲コピー(TSV)はタブ区切りを初期適用
-  tabs.push(tab); cur = tabs.length-1;
+  tabs.push(tab); panes[activePane].cur = tabs.length-1;
   renderTabs(); renderAll();
   toast(`クリップボードの内容を「${name}」として開きました（${bytes.length.toLocaleString()} バイト・UTF-8）`);
 }
@@ -78,6 +78,7 @@ async function pasteFromClipboardButton(){
 function createTab(name, bytes){
   const tab = {
     name, bytes,
+    pane: activePane,               // 所属ペイン(4.8)
     mode: detectMode(bytes),
     encSel: 'auto',                 // 'auto' or ラベル
     nlSel: 'auto',                  // 'auto' | 'crlf' | 'lf' | 'cr'
@@ -113,14 +114,53 @@ function renderTabs(){
   bar.querySelectorAll('.tab').forEach(e=>e.remove());
   const open = $('#btnOpen');
   tabs.forEach((t,i)=>{
-    const d = el('div','tab'+(i===cur?' on':''));
+    const isCur = panes[t.pane].cur===i;   // 所属ペインの表示中タブ
+    const d = el('div','tab'+(isCur?' on':'')+(isCur&&t.pane===activePane&&layout!=='single'?' act':''));
+    if(layout!=='single')
+      d.appendChild(el('span','pbadge', t.pane===0 ? (layout==='cols'?'◧':'⬒') : (layout==='cols'?'◨':'⬓')));
     d.appendChild(el('span','name',t.name));
     const x = el('button','x','✕'); x.title='閉じる';
     x.onclick = ev=>{ ev.stopPropagation(); closeTab(i); };
     d.appendChild(x);
-    d.onclick = ()=>{ if(cur!==i){ cur=i; renderTabs(); renderAll(); } };
+    d.onclick = ()=>{
+      const changed = panes[t.pane].cur!==i || activePane!==t.pane;
+      panes[t.pane].cur = i; activePane = t.pane;
+      paneActClass();
+      if(changed){ renderTabs(); renderAll(); }
+    };
+    if(layout!=='single'){
+      d.title = `右クリックで${paneLabel(1-t.pane)}のペインへ移動`;
+      d.oncontextmenu = ev=>{ ev.preventDefault(); moveTabToPane(i, 1-t.pane); };
+    }
     bar.insertBefore(d, open);
   });
+}
+/* タブを反対側のペインへ移動(4.8)。編集モード中でも状態はタブに閉じているため安全 */
+function moveTabToPane(i, p){
+  const t = tabs[i];
+  if(!t || t.pane===p) return;
+  closeCellEd(true);
+  const from = t.pane;
+  t.pane = p;
+  panes[p].cur = i;
+  if(panes[from].cur===i){
+    panes[from].cur = -1;
+    for(let k=tabs.length-1;k>=0;k--) if(k!==i && tabs[k].pane===from){ panes[from].cur=k; break; }
+  }
+  activePane = p;
+  paneActClass();
+  renderTabs(); renderAllPanes();
+  toast(`「${t.name}」を${paneLabel(p)}のペインへ移動しました`);
+}
+function paneActClass(){
+  document.querySelectorAll('#panes .pane').forEach((el,k)=>el.classList.toggle('act', k===activePane));
+}
+function setActivePane(p){
+  if(layout==='single' || activePane===p) return;
+  activePane = p;
+  paneActClass();
+  /* ペイン内容は再描画しない（スクロール位置維持）。ツールバー等の表示だけ切替 */
+  renderTabs(); updateToolbar(); renderSide(); updateStatus();
 }
 function closeTab(i){
   const t = tabs[i];
@@ -128,7 +168,14 @@ function closeTab(i){
      && !confirm(`「${t.name}」に未保存の編集が ${t.edit.edits.size} セルあります。破棄して閉じますか？`)) return;
   closeCellEd(false);
   tabs.splice(i,1);
-  if(cur>=tabs.length) cur=tabs.length-1;
-  renderTabs(); renderAll();
+  /* 両ペインのインデックスを補正し、空いたペインには所属タブの末尾を割当 */
+  for(const pn of panes){
+    if(pn.cur===i) pn.cur = -1;
+    else if(pn.cur>i) pn.cur--;
+  }
+  panes.forEach((pn,p)=>{
+    if(pn.cur<0) for(let k=tabs.length-1;k>=0;k--) if(tabs[k].pane===p){ pn.cur=k; break; }
+  });
+  renderTabs(); renderAllPanes();
 }
 

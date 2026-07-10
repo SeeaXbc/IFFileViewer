@@ -196,10 +196,10 @@ function finishCellChanges(tab){
   c.lower = null;
   recountTextMarkers(tab);
   rebuildTextSearch(tab);
-  if(curTab()===tab){  // 表示中タブ以外への確定（blur経由）ではDOMを触らない
-    if(tab._growW){ tab._growW=false; renderAll(true); }
-    else { refreshRenderedTextRows(tab); updateStatus(); }
-    updateEditCtls();
+  if(paneTab(tab.pane)===tab){  // 所属ペインに表示中でなければDOMを触らない
+    if(tab._growW){ tab._growW=false; renderPane(tab.pane, true); }
+    else refreshRenderedTextRows(tab);
+    if(curTab()===tab){ updateStatus(); updateEditCtls(); }
   } else tab._growW = false;
 }
 function joinRowLine(f, ds){
@@ -302,7 +302,7 @@ function moveCellEd(ctx, d){
     else break;
   }
   ensureTextRows(ctx.tab, li+1);
-  const row = $('#content').querySelector(`[data-l="${li}"]`); if(!row) return;
+  const row = contentOf(ctx.tab).querySelector(`[data-l="${li}"]`); if(!row) return;
   const cell = row.querySelector(`[data-c="${ci}"]`); if(!cell) return;
   cell.scrollIntoView({block:'nearest', inline:'nearest'});
   openCellEditor(ctx.tab, cell, li, ci);

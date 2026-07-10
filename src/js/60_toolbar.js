@@ -42,12 +42,12 @@ function initToolbar(){
     settings.delimGap = g; LS.set('ifv_settings', settings);
     applyDisplaySettings();
     const t=curTab();
-    if(t && t.mode==='text') renderAll(true); // 列幅・ヘッダー幅の再計算（グリッド/桁揃え共通）
+    if(t && t.mode==='text') renderAllPanes(true); // 列幅・ヘッダー幅の再計算（両ペイン）
   };
   $('#btnWs').onclick = ()=>{
     settings.showWs = !settings.showWs; LS.set('ifv_settings', settings);
     const t=curTab();
-    if(t && t.mode==='text') renderAll(true); else updateToolbar();
+    if(t && t.mode==='text') renderAllPanes(true); else updateToolbar();
   };
   const zoomStep = d=>{
     let i = ZOOMS.indexOf(settings.zoom); if(i<0) i = ZOOMS.indexOf(100);
@@ -110,6 +110,12 @@ function initToolbar(){
     if(tabs.some(t=>t.edit&&t.edit.edits.size&&t.edit.unsaved)){ e.preventDefault(); e.returnValue=''; }
   });
 
+  /* マルチペイン(4.8) */
+  $('#laySingle').onclick = ()=>setLayout('single');
+  $('#layCols').onclick = ()=>setLayout('cols');
+  $('#layRows').onclick = ()=>setLayout('rows');
+  $('#btnSync').onclick = toggleSyncScroll;
+
   $('#btnSide').onclick = ()=>{ $('#side').classList.toggle('hidden'); };
   $('#btnSettings').onclick = openSettings;
   $('#btnHelp').onclick = ()=>$('#helpBack').classList.add('show');
@@ -144,7 +150,7 @@ function doSearch(dir){
   if(t.mode==='text'){
     if(t.query!==$('#searchBox').value){ t.query=$('#searchBox').value; rebuildTextSearch(t); if(t.filterHits) renderAll(true); }
     gotoTextHit(dir); refreshRenderedTextRows(t);
-    const h=t.hits[t.curHit]; if(h){ const row=$('#content').querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
+    const h=t.hits[t.curHit]; if(h){ const row=contentOf(t).querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
   }else{
     if(t.binQuery!==$('#searchBox').value){ t.binQuery=$('#searchBox').value; rebuildBinSearch(t); }
     gotoBinHit(dir);
@@ -159,9 +165,55 @@ function setStyle(s){
   const t=curTab(); if(!t||t.style===s)return;
   t.style=s; LS.set('ifv_style',s); renderAll(true);
 }
+/* --- マルチペイン(4.8)：レイアウト切替・同期スクロール --- */
+function setLayout(l){
+  if(layout===l) return;
+  closeCellEd(true);
+  layout = l;
+  const pn = $('#panes');
+  pn.classList.toggle('single', l==='single');
+  pn.classList.toggle('rows', l==='rows');
+  resetPaneSizes();
+  if(l==='single'){
+    /* 分割解除：全タブを左ペインへ集約。表示中タブは維持する */
+    const keep = paneTab(0) || paneTab(1);
+    tabs.forEach(t=>{ t.pane = 0; });
+    panes[0].cur = keep ? tabs.indexOf(keep) : -1;
+    panes[1].cur = -1;
+    activePane = 0;
+    syncScroll = false;
+  }
+  paneActClass();
+  renderTabs(); renderAllPanes(true);
+}
+function toggleSyncScroll(){
+  if(layout==='single') return;
+  syncScroll = !syncScroll;
+  if(syncScroll) syncPaneScroll(paneContent(activePane));  // ONにした瞬間に位置を揃える
+  updateToolbar();
+  toast(syncScroll ? 'スクロール同期: ON（縦・横）' : 'スクロール同期: OFF');
+}
+let _syncing = false;
+function syncPaneScroll(srcEl){
+  if(!syncScroll || layout==='single' || _syncing) return;
+  const other = paneContent(srcEl===paneContent(0) ? 1 : 0);
+  _syncing = true;
+  other.scrollTop = srcEl.scrollTop;
+  other.scrollLeft = srcEl.scrollLeft;
+  _syncing = false;
+}
+function resetPaneSizes(){
+  document.querySelectorAll('#panes .pane').forEach((/** @type {any} */p)=>{ p.style.flex=''; });
+}
 function updateToolbar(){
   const t = curTab();
   const has = !!t;
+  /* レイアウト・同期(4.8)：タブの有無と無関係に操作可能 */
+  $('#laySingle').classList.toggle('on', layout==='single');
+  $('#layCols').classList.toggle('on', layout==='cols');
+  $('#layRows').classList.toggle('on', layout==='rows');
+  $('#btnSync').classList.toggle('hiddenCtl', layout==='single');
+  $('#btnSync').classList.toggle('on', !!syncScroll);
   ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
@@ -242,7 +294,7 @@ function renderDelimChips(tab){
           const k = t.delims.indexOf(v);
           if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
         });
-        renderAll(true);
+        renderAllPanes(true);
         toast(`区切り文字「${v}」を登録解除しました`);
       };
     }
@@ -253,7 +305,7 @@ function applyDisplaySettings(){
   const css = settings.font==='custom' ? (settings.fontCustom || FONTS.biz.css) : (FONTS[settings.font]||FONTS.biz).css;
   document.documentElement.style.setProperty('--mono', css);
   document.documentElement.style.setProperty('--dgap', (+settings.delimGap||0)+'ch');
-  $('#content').style.fontSize = (13*settings.zoom/100).toFixed(1)+'px';
+  document.querySelectorAll('#panes .pane > .content').forEach((/** @type {any} */c)=>{ c.style.fontSize = (13*settings.zoom/100).toFixed(1)+'px'; });
   $('#zoomReset').textContent = settings.zoom+'%';
 }
 function updateSearchCount(){
@@ -271,14 +323,16 @@ function updateSearchCount(){
 }
 function updateStatus(){
   const t = curTab(); const sb=$('#status');
-  if(!t){ sb.innerHTML='<span>ファイル未読み込み</span>'; return; }
+  if(!t){ sb.innerHTML = `<span>${layout!=='single' ? paneLabel(activePane)+'ペイン: ' : ''}ファイル未読み込み</span>`; return; }
   const enc = resolvedEnc(t);
-  const items = [
+  const items = [];
+  if(layout!=='single') items.push(`<b>${paneLabel(activePane)}ペイン</b>`);
+  items.push(...[
     `<b>${escText(t.name)}</b>`,
     `${fmtSize(t.bytes.length)}`,
     `モード: <b>${t.mode==='text'?'テキスト':'バイナリ'}</b>`,
     `文字コード: <b>${escText(encLabel(enc))}${t.encSel==='auto'?' (自動)':''}</b>`
-  ];
+  ]);
   if(t.mode==='text'){
     const c = t._cache;
     if(c.lines){

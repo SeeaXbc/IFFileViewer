@@ -48,7 +48,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.4.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.5.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -74,11 +74,24 @@ const CTRL_PRESETS = [
 let defs = LS.get('ifv_defs', []);            // 仮想ヘッダー定義(4.3)
 let customDelims = LS.get('ifv_delims', []);  // 登録済みの任意区切り文字
 let settings = Object.assign({contDot:true, zoom:100, font:'biz', fontCustom:'', delimGap:0, showWs:false}, LS.get('ifv_settings', {}));
-const tabs = []; let cur = -1;
+const tabs = [];
+/* マルチペイン(4.8)：2ペインまで。panes[p].cur は tabs のインデックス（-1=空） */
+const panes = [{cur:-1},{cur:-1}];
+let activePane = 0;
+let layout = 'single';        // 'single' | 'cols'(左右) | 'rows'(上下)
+let syncScroll = false;       // 分割中のスクロール同期（セッション内のみ・保存しない）
 let mkSeq = 0;
 const SEARCH = {t:'s'}, SEARCH_CUR = {t:'sc'};  // ハイライト用番兵
 
-function curTab(){ return cur>=0 ? tabs[cur] : null; }
+function curTab(){ return tabs[panes[activePane].cur] || null; }
+function paneTab(p){ return tabs[panes[p].cur] || null; }
+let _paneEls = null;
+function paneContent(p){
+  if(!_paneEls) _paneEls = [...document.querySelectorAll('#panes .pane > .content')];
+  return _paneEls[p];
+}
+function contentOf(tab){ return paneContent(tab.pane); }
+function paneLabel(p){ return layout==='rows' ? (p===0?'上':'下') : (p===0?'左':'右'); }
 
 /* ---------- 文字コード ---------- */
 const ENCODINGS = [

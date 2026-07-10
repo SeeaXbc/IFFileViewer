@@ -114,14 +114,14 @@ function gotoBinHit(dir){
   const row = Math.floor(off/16);
   ensureBinRows(tab, row+1);
   refreshRenderedBinRows(tab);
-  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  const rowEl = contentOf(tab).querySelector(`[data-r="${row}"]`);
   if(rowEl) rowEl.scrollIntoView({block:'center'});
   updateSearchCount();
 }
 
 /* --- バイナリ描画 --- */
 function buildBinView(tab, keepScroll){
-  const content = $('#content');
+  const content = contentOf(tab);
   const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
   content.textContent='';
   rebuildBinMarkerMap(tab);
@@ -135,11 +135,11 @@ function buildBinView(tab, keepScroll){
   ruler.appendChild(el('span',null,`デコード: ${encLabel(resolvedEnc(tab))}`));
   content.appendChild(ruler);
 
-  const rowsDiv = el('div'); rowsDiv.id='rows';
+  const rowsDiv = el('div'); rowsDiv.className='rows';
   content.appendChild(rowsDiv);
-  const moreWrap = el('div'); moreWrap.id='moreWrap';
+  const moreWrap = el('div'); moreWrap.className='moreWrap';
   content.appendChild(moreWrap);
-  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  const sent = el('div'); sent.className='sentinel'; sent.style.height='1px';
   content.appendChild(sent);
 
   tab.renderedBin = 0;
@@ -147,7 +147,7 @@ function buildBinView(tab, keepScroll){
   const target = Math.max(CHUNK_BIN, Math.min(tab._keepBinRows||0, totalRows));
   while(tab.renderedBin < Math.min(target, totalRows)) appendBinRows(tab, CHUNK_BIN);
 
-  setupSentinel(()=>{
+  setupSentinel(tab, ()=>{
     const tr = Math.ceil(tab.binLimit/16);
     if(tab.renderedBin < tr){ appendBinRows(tab, CHUNK_BIN); return true; }
     updateMoreButton(tab); return false;
@@ -156,7 +156,7 @@ function buildBinView(tab, keepScroll){
   if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
 }
 function updateMoreButton(tab){
-  const w = $('#moreWrap'); if(!w) return;
+  const w = contentOf(tab).querySelector('.moreWrap'); if(!w) return;
   w.textContent='';
   const tr = Math.ceil(tab.binLimit/16);
   if(tab.renderedBin>=tr && tab.binLimit < tab.bytes.length){
@@ -171,7 +171,7 @@ function updateMoreButton(tab){
   }
 }
 function appendBinRows(tab, n){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const totalRows = Math.ceil(tab.binLimit/16);
   const end = Math.min(tab.renderedBin+n, totalRows);
   extendDecodeMap(tab, Math.min(end*16, tab.bytes.length));
@@ -267,7 +267,7 @@ function appendContAware(parent, tab, s, j0, j1, chs, cpos, e){
   }
 }
 function refreshRenderedBinRows(tab){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   makeBinHitSet(tab);
   const rows = rowsDiv.children;
   for(let k=0;k<rows.length;k++){
@@ -329,14 +329,14 @@ function clearBinSel(tab){
 }
 function refreshBinRange(tab, a, b){
   if(a==null) return;
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   for(let r=Math.floor(a/16); r<=Math.floor((b-1)/16); r++){
     const old = rowsDiv.querySelector(`[data-r="${r}"]`);
     if(old) rowsDiv.replaceChild(buildBinRow(tab, r), old);
   }
 }
 function initBinSelect(){
-  $('#content').addEventListener('click', e=>{
+  document.querySelectorAll('#panes .pane > .content').forEach(cEl=>cEl.addEventListener('click', (/** @type {any} */e)=>{
     const t = curTab(); if(!t || t.mode!=='bin') return;
     const row = e.target.closest('.brow');
     if(!row){ if(!e.target.closest('.more')) clearBinSel(t); return; }
@@ -353,7 +353,7 @@ function initBinSelect(){
     for(let k=0;k<16;k++) if(posOf(arr[k])<=off) j=k;
     if(s+j>=end){ clearBinSel(t); return; }
     binSelectByte(t, s+j);
-  });
+  }));
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape'){
       /* ダイアログが開いていればそちらを閉じる */

@@ -93,7 +93,7 @@ function deleteDef(i){
   $('#defsTa').value = JSON.stringify(defs, null, 2);
   $('#defsErr').textContent='';
   renderDefList();
-  renderAll(true);
+  renderAllPanes(true);
   toast(i<0 ? 'ヘッダー定義をすべて削除しました' : `定義「${delName}」を削除しました`);
 }
 function renderDelimList(){
@@ -112,7 +112,7 @@ function renderDelimList(){
         const k = t.delims.indexOf(v);
         if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
       });
-      renderDelimList(); renderAll(true);
+      renderDelimList(); renderAllPanes(true);
     };
     chip.appendChild(x); box.appendChild(chip);
   });
@@ -145,7 +145,7 @@ function initSettings(){
     applyDisplaySettings();
     $('#modalBack').classList.remove('show');
     tabs.forEach(t=>{ t._cache.cellsKey=null; });
-    renderAll(true);
+    renderAllPanes(true);
     toast(LS.ok?'保存しました':'このセッション内でのみ有効です（localStorage不可）');
   };
   $('#defsFile').onchange = async e=>{

@@ -50,12 +50,25 @@ label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-sel
 
 /* ---- layout ---- */
 #main{flex:1;display:flex;min-height:0}
-#content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
+/* ---- マルチペイン(4.8) ---- */
+#panes{flex:1;display:flex;min-width:0;min-height:0}
+#panes.rows{flex-direction:column}
+.pane{flex:1 1 0;display:flex;min-width:0;min-height:0;position:relative}
+#panes:not(.single) .pane.act::after{content:'';position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 0 2px var(--accent);opacity:.45;z-index:6}
+#divider{flex:0 0 6px;background:var(--border);cursor:col-resize;z-index:7}
+#divider:hover,#divider.drag{background:var(--accent)}
+#panes.rows #divider{cursor:row-resize}
+#panes.single #divider,#panes.single .pane[data-p="1"]{display:none}
+.tab .pbadge{color:var(--accent);margin-right:3px;font-size:11px}
+.tab.act{box-shadow:inset 0 -2px 0 var(--accent)}
+#btnSync.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
   tab-size:1;-moz-tab-size:1} /* タブの描画幅を列幅計算(タブ=1文字)と一致させる */
-#drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   color:var(--sub);font-family:"Segoe UI","Meiryo",sans-serif;white-space:normal}
-#drop .big{font-size:20px}
-body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
+.drop .big{font-size:20px}
+body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 /* ---- side panel ---- */
 #side{width:300px;flex:none;border-left:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
@@ -110,7 +123,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 .ws-zsp::before{content:'□'}
 .ws-cr{display:inline-block;min-width:1ch}
 .ws-cr::before{content:'␍';font-size:85%}
-#content .more{display:block;width:max-content;margin:8px;font-family:inherit}
+.content .more{display:block;width:max-content;margin:8px;font-family:inherit}
 
 /* ---- binary view ---- */
 .bruler{position:sticky;top:0;z-index:5;background:#eef1f5;border-bottom:1px solid var(--border);color:var(--sub);user-select:none;width:max-content;min-width:100%}
@@ -209,6 +222,9 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
   <div class="grp" style="margin-left:auto">
     <span class="lbl">拡大</span>
     <span class="seg"><button id="zoomOut" title="縮小">−</button><button id="zoomReset" title="クリックで100%に戻す">100%</button><button id="zoomIn" title="拡大">＋</button></span>
+    <span class="lbl">分割</span>
+    <span class="seg"><button id="laySingle" title="分割なし">▭</button><button id="layCols" title="左右2ペイン">◫</button><button id="layRows" title="上下2ペイン">⬒</button></span>
+    <button id="btnSync" class="hiddenCtl" title="2つのペインのスクロールを同期（縦・横）">🔗 同期</button>
     <button id="btnSide">🖍 マーカー</button>
     <button id="btnSettings">⚙ 設定</button>
     <button id="btnHelp" title="使い方">❓ ヘルプ</button>
@@ -263,14 +279,20 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 </div>
 
 <div id="main">
-  <div id="content">
-    <div id="drop">
-      <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
-      <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
-      <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
-      <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
-      <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+  <div id="panes" class="single">
+    <div class="pane act" data-p="0">
+      <div class="content">
+        <div class="drop">
+          <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
+          <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+          <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
+          <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
+          <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+        </div>
+      </div>
     </div>
+    <div id="divider"></div>
+    <div class="pane" data-p="1"><div class="content"></div></div>
   </div>
   <div id="side" class="hidden">
     <h3 id="sideTitle">マーカー</h3>
@@ -376,6 +398,16 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>左からオフセット／HEX（16バイト/行）／指定文字コードでのデコード結果。全角などのマルチバイト文字は<b>先頭バイトの位置</b>に表示され、後続バイトは <code>·</code>（継続）になります。</li>
         <li>HEX側・デコード側の<b>クリックで対応箇所を相互ハイライト</b>。マルチバイト文字は全バイトが選択され、ステータスバーに詳細表示。再クリックか<kbd>Esc</kbd>で解除。</li>
         <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
+      </ul>
+
+      <h3>マルチカラム表示（2ペイン分割）</h3>
+      <p>ツールバー右上の「分割」で <span class="tag">▭ 単一</span> / <span class="tag">◫ 左右</span> / <span class="tag">⬒ 上下</span> を切り替えます。正常ファイルと異常ファイルの見比べなどに使えます。</p>
+      <ul>
+        <li>ファイルは<b>アクティブなペイン</b>（アクセント色の枠）に開きます。ペインをクリックするとアクティブが切り替わり、ツールバー・検索・ステータスバーはアクティブペインのタブに作用します。D&amp;Dは<b>ドロップした側のペイン</b>に開きます。</li>
+        <li>分割中はタブに所属ペインのバッジ（◧/◨）が付き、<b>タブを右クリックで反対側のペインへ移動</b>できます（編集モード中のタブも移動可）。</li>
+        <li><b>🔗 同期</b>：ONにすると2つのペインのスクロール（縦・横）が連動します。同レイアウトのIF新旧比較に便利です。</li>
+        <li>ペイン境界は<b>ドラッグで比率変更</b>（ダブルクリックで50%に戻る）。分割を解除すると全タブが左（上）ペインに集約されます。</li>
+        <li>分割状態は保存されません（次回起動時は単一ペイン）。</li>
       </ul>
 
       <h3>編集モード（✏）</h3>

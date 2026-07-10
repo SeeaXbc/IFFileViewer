@@ -223,7 +223,7 @@ function jumpNextNG(){
   t._valCur = ((t._valCur??-1)+1) % lines.length;
   const li = lines[t._valCur];
   ensureTextRows(t, li+1);
-  const row = $('#content').querySelector(`[data-l="${li}"]`);
+  const row = contentOf(t).querySelector(`[data-l="${li}"]`);
   if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
   updateToolbar();
 }
@@ -247,7 +247,7 @@ function gotoPrompt(){
       toast('ヒット行フィルタを解除しました');
     }
     ensureTextRows(t, n);
-    const row = $('#content').querySelector(`[data-l="${n-1}"]`);
+    const row = contentOf(t).querySelector(`[data-l="${n-1}"]`);
     if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
   }else{
     const s = prompt(`オフセットへジャンプ（10進 または 16進 0x…、0〜${(t.bytes.length-1).toLocaleString()}）`);
@@ -265,7 +265,7 @@ function gotoBinOffset(tab, off){
   }
   const row = Math.floor(off/16);
   ensureBinRows(tab, row+1);
-  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  const rowEl = contentOf(tab).querySelector(`[data-r="${row}"]`);
   if(rowEl){ rowEl.scrollIntoView({block:'center'}); flashRow(rowEl); }
 }
 
@@ -391,7 +391,7 @@ function gotoTextHit(dir){
   const h = tab.hits[tab.curHit];
   ensureTextRows(tab, h.line+1);
   refreshRenderedTextRows(tab);
-  const row = $('#content').querySelector(`[data-l="${h.line}"]`);
+  const row = contentOf(tab).querySelector(`[data-l="${h.line}"]`);
   if(row) row.scrollIntoView({block:'center'});
   updateSearchCount();
 }
@@ -501,13 +501,16 @@ function showHdrTip(cell, def){
   tip.style.top = y+'px';
 }
 function hideHdrTip(){ $('#hdrTip').classList.remove('show'); }
-$('#content').addEventListener('scroll', ()=>{
-  hideHdrTip();
-  if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
-}, {passive:true});
+document.querySelectorAll('#panes .pane > .content').forEach(c=>{
+  c.addEventListener('scroll', ()=>{
+    hideHdrTip();
+    if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
+    syncPaneScroll(c);                 // 同期スクロール(4.8)
+  }, {passive:true});
+});
 
 function buildTextView(tab, keepScroll){
-  const content = $('#content');
+  const content = contentOf(tab);
   const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
   content.textContent='';
   const c = prepText(tab);
@@ -552,7 +555,7 @@ function buildTextView(tab, keepScroll){
     });
     content.appendChild(hb);
   }
-  const rowsDiv = el('div'); rowsDiv.id='rows';
+  const rowsDiv = el('div'); rowsDiv.className='rows';
   /* 編集モード(9章)：ダブルクリックでセル編集、編集済みセルは右クリックで元に戻す */
   if(tab.edit){
     rowsDiv.addEventListener('dblclick', e=>{
@@ -575,7 +578,7 @@ function buildTextView(tab, keepScroll){
     copyColumn(tab, +cell.dataset.c);
   });
   content.appendChild(rowsDiv);
-  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  const sent = el('div'); sent.className='sentinel'; sent.style.height='1px';
   content.appendChild(sent);
 
   const total = totalTextRows(tab);
@@ -588,7 +591,7 @@ function buildTextView(tab, keepScroll){
   const target = Math.max(CHUNK_TEXT, Math.min(tab._keepTextRows||0, total));
   while(tab.renderedText < Math.min(target, total)) appendTextRows(tab, CHUNK_TEXT);
 
-  setupSentinel(()=>{ if(tab.renderedText < totalTextRows(tab)){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
+  setupSentinel(tab, ()=>{ if(tab.renderedText < totalTextRows(tab)){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
   if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
 }
 function totalTextRows(tab){
@@ -608,7 +611,7 @@ function makeLn(tab, text){
   return s;
 }
 function appendTextRows(tab, n){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const src = tab._flist;  // 行フィルタ中は表示行リスト経由
   const frag = document.createDocumentFragment();
   const end = Math.min(tab.renderedText+n, totalTextRows(tab));
@@ -668,7 +671,7 @@ function buildTextRow(tab, li){
 }
 function refreshRenderedTextRows(tab){
   /* 描画済み行のみ再構築（マーカー/検索変更時） */
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const rows = rowsDiv.children;
   for(let k=0;k<rows.length;k++){
     const li = +rows[k].dataset.l;

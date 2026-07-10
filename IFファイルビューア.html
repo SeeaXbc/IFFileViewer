@@ -50,12 +50,25 @@ label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-sel
 
 /* ---- layout ---- */
 #main{flex:1;display:flex;min-height:0}
-#content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
+/* ---- マルチペイン(4.8) ---- */
+#panes{flex:1;display:flex;min-width:0;min-height:0}
+#panes.rows{flex-direction:column}
+.pane{flex:1 1 0;display:flex;min-width:0;min-height:0;position:relative}
+#panes:not(.single) .pane.act::after{content:'';position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 0 2px var(--accent);opacity:.45;z-index:6}
+#divider{flex:0 0 6px;background:var(--border);cursor:col-resize;z-index:7}
+#divider:hover,#divider.drag{background:var(--accent)}
+#panes.rows #divider{cursor:row-resize}
+#panes.single #divider,#panes.single .pane[data-p="1"]{display:none}
+.tab .pbadge{color:var(--accent);margin-right:3px;font-size:11px}
+.tab.act{box-shadow:inset 0 -2px 0 var(--accent)}
+#btnSync.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.content{flex:1;overflow:auto;background:var(--panel);position:relative;font-family:var(--mono);font-size:13px;white-space:pre;
   tab-size:1;-moz-tab-size:1} /* タブの描画幅を列幅計算(タブ=1文字)と一致させる */
-#drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   color:var(--sub);font-family:"Segoe UI","Meiryo",sans-serif;white-space:normal}
-#drop .big{font-size:20px}
-body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
+.drop .big{font-size:20px}
+body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 /* ---- side panel ---- */
 #side{width:300px;flex:none;border-left:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;min-height:0}
@@ -110,7 +123,7 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 .ws-zsp::before{content:'□'}
 .ws-cr{display:inline-block;min-width:1ch}
 .ws-cr::before{content:'␍';font-size:85%}
-#content .more{display:block;width:max-content;margin:8px;font-family:inherit}
+.content .more{display:block;width:max-content;margin:8px;font-family:inherit}
 
 /* ---- binary view ---- */
 .bruler{position:sticky;top:0;z-index:5;background:#eef1f5;border-bottom:1px solid var(--border);color:var(--sub);user-select:none;width:max-content;min-width:100%}
@@ -209,6 +222,9 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
   <div class="grp" style="margin-left:auto">
     <span class="lbl">拡大</span>
     <span class="seg"><button id="zoomOut" title="縮小">−</button><button id="zoomReset" title="クリックで100%に戻す">100%</button><button id="zoomIn" title="拡大">＋</button></span>
+    <span class="lbl">分割</span>
+    <span class="seg"><button id="laySingle" title="分割なし">▭</button><button id="layCols" title="左右2ペイン">◫</button><button id="layRows" title="上下2ペイン">⬒</button></span>
+    <button id="btnSync" class="hiddenCtl" title="2つのペインのスクロールを同期（縦・横）">🔗 同期</button>
     <button id="btnSide">🖍 マーカー</button>
     <button id="btnSettings">⚙ 設定</button>
     <button id="btnHelp" title="使い方">❓ ヘルプ</button>
@@ -263,14 +279,20 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
 </div>
 
 <div id="main">
-  <div id="content">
-    <div id="drop">
-      <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
-      <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
-      <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
-      <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
-      <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+  <div id="panes" class="single">
+    <div class="pane act" data-p="0">
+      <div class="content">
+        <div class="drop">
+          <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
+          <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
+          <div>クリップボードから <b>Ctrl+V</b> でも開けます（Excelの範囲コピー等）</div>
+          <div>ヘッダー定義JSONファイルをドロップすると定義として読み込みます</div>
+          <div style="margin-top:6px">🔒 読み取り専用ビューアです。元ファイルへの書き込みは一切行いません。</div>
+        </div>
+      </div>
     </div>
+    <div id="divider"></div>
+    <div class="pane" data-p="1"><div class="content"></div></div>
   </div>
   <div id="side" class="hidden">
     <h3 id="sideTitle">マーカー</h3>
@@ -376,6 +398,16 @@ body.dragging #content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>左からオフセット／HEX（16バイト/行）／指定文字コードでのデコード結果。全角などのマルチバイト文字は<b>先頭バイトの位置</b>に表示され、後続バイトは <code>·</code>（継続）になります。</li>
         <li>HEX側・デコード側の<b>クリックで対応箇所を相互ハイライト</b>。マルチバイト文字は全バイトが選択され、ステータスバーに詳細表示。再クリックか<kbd>Esc</kbd>で解除。</li>
         <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
+      </ul>
+
+      <h3>マルチカラム表示（2ペイン分割）</h3>
+      <p>ツールバー右上の「分割」で <span class="tag">▭ 単一</span> / <span class="tag">◫ 左右</span> / <span class="tag">⬒ 上下</span> を切り替えます。正常ファイルと異常ファイルの見比べなどに使えます。</p>
+      <ul>
+        <li>ファイルは<b>アクティブなペイン</b>（アクセント色の枠）に開きます。ペインをクリックするとアクティブが切り替わり、ツールバー・検索・ステータスバーはアクティブペインのタブに作用します。D&amp;Dは<b>ドロップした側のペイン</b>に開きます。</li>
+        <li>分割中はタブに所属ペインのバッジ（◧/◨）が付き、<b>タブを右クリックで反対側のペインへ移動</b>できます（編集モード中のタブも移動可）。</li>
+        <li><b>🔗 同期</b>：ONにすると2つのペインのスクロール（縦・横）が連動します。同レイアウトのIF新旧比較に便利です。</li>
+        <li>ペイン境界は<b>ドラッグで比率変更</b>（ダブルクリックで50%に戻る）。分割を解除すると全タブが左（上）ペインに集約されます。</li>
+        <li>分割状態は保存されません（次回起動時は単一ペイン）。</li>
       </ul>
 
       <h3>編集モード（✏）</h3>
@@ -496,7 +528,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.4.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.5.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -522,11 +554,24 @@ const CTRL_PRESETS = [
 let defs = LS.get('ifv_defs', []);            // 仮想ヘッダー定義(4.3)
 let customDelims = LS.get('ifv_delims', []);  // 登録済みの任意区切り文字
 let settings = Object.assign({contDot:true, zoom:100, font:'biz', fontCustom:'', delimGap:0, showWs:false}, LS.get('ifv_settings', {}));
-const tabs = []; let cur = -1;
+const tabs = [];
+/* マルチペイン(4.8)：2ペインまで。panes[p].cur は tabs のインデックス（-1=空） */
+const panes = [{cur:-1},{cur:-1}];
+let activePane = 0;
+let layout = 'single';        // 'single' | 'cols'(左右) | 'rows'(上下)
+let syncScroll = false;       // 分割中のスクロール同期（セッション内のみ・保存しない）
 let mkSeq = 0;
 const SEARCH = {t:'s'}, SEARCH_CUR = {t:'sc'};  // ハイライト用番兵
 
-function curTab(){ return cur>=0 ? tabs[cur] : null; }
+function curTab(){ return tabs[panes[activePane].cur] || null; }
+function paneTab(p){ return tabs[panes[p].cur] || null; }
+let _paneEls = null;
+function paneContent(p){
+  if(!_paneEls) _paneEls = [...document.querySelectorAll('#panes .pane > .content')];
+  return _paneEls[p];
+}
+function contentOf(tab){ return paneContent(tab.pane); }
+function paneLabel(p){ return layout==='rows' ? (p===0?'上':'下') : (p===0?'左':'右'); }
 
 /* ---------- 文字コード ---------- */
 const ENCODINGS = [
@@ -623,13 +668,13 @@ async function openFiles(fileList){
           /* 先頭に追加されるため、手動選択済みのインデックスをずらして維持する */
           tabs.forEach(t=>{ if(typeof t.defSel==='number') t.defSel += arr.length; });
           tabs.forEach(t=>{ if(t.defSel==='auto') t._dirtyView=true; });
-          if(curTab()) renderAll();
+          renderAllPanes();
           continue;
         }
       }catch(e){ /* JSONでなければ通常ファイルとして開く */ }
     }
     const tab = createTab(f.name, bytes);
-    tabs.push(tab); cur = tabs.length-1;
+    tabs.push(tab); panes[activePane].cur = tabs.length-1;
   }
   renderTabs(); renderAll();
 }
@@ -646,7 +691,7 @@ function openPastedText(text){
   const tab = createTab(name, bytes);
   tab.encSel = 'utf-8';                          // 合成バイト列はUTF-8（表示を明確化）
   if(text.includes('\t')) tab.delims = ['\t'];   // Excelの範囲コピー(TSV)はタブ区切りを初期適用
-  tabs.push(tab); cur = tabs.length-1;
+  tabs.push(tab); panes[activePane].cur = tabs.length-1;
   renderTabs(); renderAll();
   toast(`クリップボードの内容を「${name}」として開きました（${bytes.length.toLocaleString()} バイト・UTF-8）`);
 }
@@ -672,6 +717,7 @@ async function pasteFromClipboardButton(){
 function createTab(name, bytes){
   const tab = {
     name, bytes,
+    pane: activePane,               // 所属ペイン(4.8)
     mode: detectMode(bytes),
     encSel: 'auto',                 // 'auto' or ラベル
     nlSel: 'auto',                  // 'auto' | 'crlf' | 'lf' | 'cr'
@@ -707,14 +753,53 @@ function renderTabs(){
   bar.querySelectorAll('.tab').forEach(e=>e.remove());
   const open = $('#btnOpen');
   tabs.forEach((t,i)=>{
-    const d = el('div','tab'+(i===cur?' on':''));
+    const isCur = panes[t.pane].cur===i;   // 所属ペインの表示中タブ
+    const d = el('div','tab'+(isCur?' on':'')+(isCur&&t.pane===activePane&&layout!=='single'?' act':''));
+    if(layout!=='single')
+      d.appendChild(el('span','pbadge', t.pane===0 ? (layout==='cols'?'◧':'⬒') : (layout==='cols'?'◨':'⬓')));
     d.appendChild(el('span','name',t.name));
     const x = el('button','x','✕'); x.title='閉じる';
     x.onclick = ev=>{ ev.stopPropagation(); closeTab(i); };
     d.appendChild(x);
-    d.onclick = ()=>{ if(cur!==i){ cur=i; renderTabs(); renderAll(); } };
+    d.onclick = ()=>{
+      const changed = panes[t.pane].cur!==i || activePane!==t.pane;
+      panes[t.pane].cur = i; activePane = t.pane;
+      paneActClass();
+      if(changed){ renderTabs(); renderAll(); }
+    };
+    if(layout!=='single'){
+      d.title = `右クリックで${paneLabel(1-t.pane)}のペインへ移動`;
+      d.oncontextmenu = ev=>{ ev.preventDefault(); moveTabToPane(i, 1-t.pane); };
+    }
     bar.insertBefore(d, open);
   });
+}
+/* タブを反対側のペインへ移動(4.8)。編集モード中でも状態はタブに閉じているため安全 */
+function moveTabToPane(i, p){
+  const t = tabs[i];
+  if(!t || t.pane===p) return;
+  closeCellEd(true);
+  const from = t.pane;
+  t.pane = p;
+  panes[p].cur = i;
+  if(panes[from].cur===i){
+    panes[from].cur = -1;
+    for(let k=tabs.length-1;k>=0;k--) if(k!==i && tabs[k].pane===from){ panes[from].cur=k; break; }
+  }
+  activePane = p;
+  paneActClass();
+  renderTabs(); renderAllPanes();
+  toast(`「${t.name}」を${paneLabel(p)}のペインへ移動しました`);
+}
+function paneActClass(){
+  document.querySelectorAll('#panes .pane').forEach((el,k)=>el.classList.toggle('act', k===activePane));
+}
+function setActivePane(p){
+  if(layout==='single' || activePane===p) return;
+  activePane = p;
+  paneActClass();
+  /* ペイン内容は再描画しない（スクロール位置維持）。ツールバー等の表示だけ切替 */
+  renderTabs(); updateToolbar(); renderSide(); updateStatus();
 }
 function closeTab(i){
   const t = tabs[i];
@@ -722,8 +807,15 @@ function closeTab(i){
      && !confirm(`「${t.name}」に未保存の編集が ${t.edit.edits.size} セルあります。破棄して閉じますか？`)) return;
   closeCellEd(false);
   tabs.splice(i,1);
-  if(cur>=tabs.length) cur=tabs.length-1;
-  renderTabs(); renderAll();
+  /* 両ペインのインデックスを補正し、空いたペインには所属タブの末尾を割当 */
+  for(const pn of panes){
+    if(pn.cur===i) pn.cur = -1;
+    else if(pn.cur>i) pn.cur--;
+  }
+  panes.forEach((pn,p)=>{
+    if(pn.cur<0) for(let k=tabs.length-1;k>=0;k--) if(tabs[k].pane===p){ pn.cur=k; break; }
+  });
+  renderTabs(); renderAllPanes();
 }
 
 /* =====================================================================
@@ -951,7 +1043,7 @@ function jumpNextNG(){
   t._valCur = ((t._valCur??-1)+1) % lines.length;
   const li = lines[t._valCur];
   ensureTextRows(t, li+1);
-  const row = $('#content').querySelector(`[data-l="${li}"]`);
+  const row = contentOf(t).querySelector(`[data-l="${li}"]`);
   if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
   updateToolbar();
 }
@@ -975,7 +1067,7 @@ function gotoPrompt(){
       toast('ヒット行フィルタを解除しました');
     }
     ensureTextRows(t, n);
-    const row = $('#content').querySelector(`[data-l="${n-1}"]`);
+    const row = contentOf(t).querySelector(`[data-l="${n-1}"]`);
     if(row){ row.scrollIntoView({block:'center'}); flashRow(row); }
   }else{
     const s = prompt(`オフセットへジャンプ（10進 または 16進 0x…、0〜${(t.bytes.length-1).toLocaleString()}）`);
@@ -993,7 +1085,7 @@ function gotoBinOffset(tab, off){
   }
   const row = Math.floor(off/16);
   ensureBinRows(tab, row+1);
-  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  const rowEl = contentOf(tab).querySelector(`[data-r="${row}"]`);
   if(rowEl){ rowEl.scrollIntoView({block:'center'}); flashRow(rowEl); }
 }
 
@@ -1119,7 +1211,7 @@ function gotoTextHit(dir){
   const h = tab.hits[tab.curHit];
   ensureTextRows(tab, h.line+1);
   refreshRenderedTextRows(tab);
-  const row = $('#content').querySelector(`[data-l="${h.line}"]`);
+  const row = contentOf(tab).querySelector(`[data-l="${h.line}"]`);
   if(row) row.scrollIntoView({block:'center'});
   updateSearchCount();
 }
@@ -1229,13 +1321,16 @@ function showHdrTip(cell, def){
   tip.style.top = y+'px';
 }
 function hideHdrTip(){ $('#hdrTip').classList.remove('show'); }
-$('#content').addEventListener('scroll', ()=>{
-  hideHdrTip();
-  if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
-}, {passive:true});
+document.querySelectorAll('#panes .pane > .content').forEach(c=>{
+  c.addEventListener('scroll', ()=>{
+    hideHdrTip();
+    if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
+    syncPaneScroll(c);                 // 同期スクロール(4.8)
+  }, {passive:true});
+});
 
 function buildTextView(tab, keepScroll){
-  const content = $('#content');
+  const content = contentOf(tab);
   const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
   content.textContent='';
   const c = prepText(tab);
@@ -1280,7 +1375,7 @@ function buildTextView(tab, keepScroll){
     });
     content.appendChild(hb);
   }
-  const rowsDiv = el('div'); rowsDiv.id='rows';
+  const rowsDiv = el('div'); rowsDiv.className='rows';
   /* 編集モード(9章)：ダブルクリックでセル編集、編集済みセルは右クリックで元に戻す */
   if(tab.edit){
     rowsDiv.addEventListener('dblclick', e=>{
@@ -1303,7 +1398,7 @@ function buildTextView(tab, keepScroll){
     copyColumn(tab, +cell.dataset.c);
   });
   content.appendChild(rowsDiv);
-  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  const sent = el('div'); sent.className='sentinel'; sent.style.height='1px';
   content.appendChild(sent);
 
   const total = totalTextRows(tab);
@@ -1316,7 +1411,7 @@ function buildTextView(tab, keepScroll){
   const target = Math.max(CHUNK_TEXT, Math.min(tab._keepTextRows||0, total));
   while(tab.renderedText < Math.min(target, total)) appendTextRows(tab, CHUNK_TEXT);
 
-  setupSentinel(()=>{ if(tab.renderedText < totalTextRows(tab)){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
+  setupSentinel(tab, ()=>{ if(tab.renderedText < totalTextRows(tab)){ appendTextRows(tab, CHUNK_TEXT); return true; } return false; });
   if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
 }
 function totalTextRows(tab){
@@ -1336,7 +1431,7 @@ function makeLn(tab, text){
   return s;
 }
 function appendTextRows(tab, n){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const src = tab._flist;  // 行フィルタ中は表示行リスト経由
   const frag = document.createDocumentFragment();
   const end = Math.min(tab.renderedText+n, totalTextRows(tab));
@@ -1396,7 +1491,7 @@ function buildTextRow(tab, li){
 }
 function refreshRenderedTextRows(tab){
   /* 描画済み行のみ再構築（マーカー/検索変更時） */
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const rows = rowsDiv.children;
   for(let k=0;k<rows.length;k++){
     const li = +rows[k].dataset.l;
@@ -1534,14 +1629,14 @@ function gotoBinHit(dir){
   const row = Math.floor(off/16);
   ensureBinRows(tab, row+1);
   refreshRenderedBinRows(tab);
-  const rowEl = $('#content').querySelector(`[data-r="${row}"]`);
+  const rowEl = contentOf(tab).querySelector(`[data-r="${row}"]`);
   if(rowEl) rowEl.scrollIntoView({block:'center'});
   updateSearchCount();
 }
 
 /* --- バイナリ描画 --- */
 function buildBinView(tab, keepScroll){
-  const content = $('#content');
+  const content = contentOf(tab);
   const st = keepScroll ? {t:content.scrollTop,l:content.scrollLeft} : null;
   content.textContent='';
   rebuildBinMarkerMap(tab);
@@ -1555,11 +1650,11 @@ function buildBinView(tab, keepScroll){
   ruler.appendChild(el('span',null,`デコード: ${encLabel(resolvedEnc(tab))}`));
   content.appendChild(ruler);
 
-  const rowsDiv = el('div'); rowsDiv.id='rows';
+  const rowsDiv = el('div'); rowsDiv.className='rows';
   content.appendChild(rowsDiv);
-  const moreWrap = el('div'); moreWrap.id='moreWrap';
+  const moreWrap = el('div'); moreWrap.className='moreWrap';
   content.appendChild(moreWrap);
-  const sent = el('div'); sent.id='sentinel'; sent.style.height='1px';
+  const sent = el('div'); sent.className='sentinel'; sent.style.height='1px';
   content.appendChild(sent);
 
   tab.renderedBin = 0;
@@ -1567,7 +1662,7 @@ function buildBinView(tab, keepScroll){
   const target = Math.max(CHUNK_BIN, Math.min(tab._keepBinRows||0, totalRows));
   while(tab.renderedBin < Math.min(target, totalRows)) appendBinRows(tab, CHUNK_BIN);
 
-  setupSentinel(()=>{
+  setupSentinel(tab, ()=>{
     const tr = Math.ceil(tab.binLimit/16);
     if(tab.renderedBin < tr){ appendBinRows(tab, CHUNK_BIN); return true; }
     updateMoreButton(tab); return false;
@@ -1576,7 +1671,7 @@ function buildBinView(tab, keepScroll){
   if(st){ content.scrollTop=st.t; content.scrollLeft=st.l; }
 }
 function updateMoreButton(tab){
-  const w = $('#moreWrap'); if(!w) return;
+  const w = contentOf(tab).querySelector('.moreWrap'); if(!w) return;
   w.textContent='';
   const tr = Math.ceil(tab.binLimit/16);
   if(tab.renderedBin>=tr && tab.binLimit < tab.bytes.length){
@@ -1591,7 +1686,7 @@ function updateMoreButton(tab){
   }
 }
 function appendBinRows(tab, n){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   const totalRows = Math.ceil(tab.binLimit/16);
   const end = Math.min(tab.renderedBin+n, totalRows);
   extendDecodeMap(tab, Math.min(end*16, tab.bytes.length));
@@ -1687,7 +1782,7 @@ function appendContAware(parent, tab, s, j0, j1, chs, cpos, e){
   }
 }
 function refreshRenderedBinRows(tab){
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   makeBinHitSet(tab);
   const rows = rowsDiv.children;
   for(let k=0;k<rows.length;k++){
@@ -1749,14 +1844,14 @@ function clearBinSel(tab){
 }
 function refreshBinRange(tab, a, b){
   if(a==null) return;
-  const rowsDiv = $('#rows'); if(!rowsDiv) return;
+  const rowsDiv = contentOf(tab).querySelector('.rows'); if(!rowsDiv) return;
   for(let r=Math.floor(a/16); r<=Math.floor((b-1)/16); r++){
     const old = rowsDiv.querySelector(`[data-r="${r}"]`);
     if(old) rowsDiv.replaceChild(buildBinRow(tab, r), old);
   }
 }
 function initBinSelect(){
-  $('#content').addEventListener('click', e=>{
+  document.querySelectorAll('#panes .pane > .content').forEach(cEl=>cEl.addEventListener('click', (/** @type {any} */e)=>{
     const t = curTab(); if(!t || t.mode!=='bin') return;
     const row = e.target.closest('.brow');
     if(!row){ if(!e.target.closest('.more')) clearBinSel(t); return; }
@@ -1773,7 +1868,7 @@ function initBinSelect(){
     for(let k=0;k<16;k++) if(posOf(arr[k])<=off) j=k;
     if(s+j>=end){ clearBinSel(t); return; }
     binSelectByte(t, s+j);
-  });
+  }));
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape'){
       /* ダイアログが開いていればそちらを閉じる */
@@ -2097,10 +2192,10 @@ function finishCellChanges(tab){
   c.lower = null;
   recountTextMarkers(tab);
   rebuildTextSearch(tab);
-  if(curTab()===tab){  // 表示中タブ以外への確定（blur経由）ではDOMを触らない
-    if(tab._growW){ tab._growW=false; renderAll(true); }
-    else { refreshRenderedTextRows(tab); updateStatus(); }
-    updateEditCtls();
+  if(paneTab(tab.pane)===tab){  // 所属ペインに表示中でなければDOMを触らない
+    if(tab._growW){ tab._growW=false; renderPane(tab.pane, true); }
+    else refreshRenderedTextRows(tab);
+    if(curTab()===tab){ updateStatus(); updateEditCtls(); }
   } else tab._growW = false;
 }
 function joinRowLine(f, ds){
@@ -2203,7 +2298,7 @@ function moveCellEd(ctx, d){
     else break;
   }
   ensureTextRows(ctx.tab, li+1);
-  const row = $('#content').querySelector(`[data-l="${li}"]`); if(!row) return;
+  const row = contentOf(ctx.tab).querySelector(`[data-l="${li}"]`); if(!row) return;
   const cell = row.querySelector(`[data-c="${ci}"]`); if(!cell) return;
   cell.scrollIntoView({block:'nearest', inline:'nearest'});
   openCellEditor(ctx.tab, cell, li, ci);
@@ -2370,12 +2465,12 @@ function initToolbar(){
     settings.delimGap = g; LS.set('ifv_settings', settings);
     applyDisplaySettings();
     const t=curTab();
-    if(t && t.mode==='text') renderAll(true); // 列幅・ヘッダー幅の再計算（グリッド/桁揃え共通）
+    if(t && t.mode==='text') renderAllPanes(true); // 列幅・ヘッダー幅の再計算（両ペイン）
   };
   $('#btnWs').onclick = ()=>{
     settings.showWs = !settings.showWs; LS.set('ifv_settings', settings);
     const t=curTab();
-    if(t && t.mode==='text') renderAll(true); else updateToolbar();
+    if(t && t.mode==='text') renderAllPanes(true); else updateToolbar();
   };
   const zoomStep = d=>{
     let i = ZOOMS.indexOf(settings.zoom); if(i<0) i = ZOOMS.indexOf(100);
@@ -2438,6 +2533,12 @@ function initToolbar(){
     if(tabs.some(t=>t.edit&&t.edit.edits.size&&t.edit.unsaved)){ e.preventDefault(); e.returnValue=''; }
   });
 
+  /* マルチペイン(4.8) */
+  $('#laySingle').onclick = ()=>setLayout('single');
+  $('#layCols').onclick = ()=>setLayout('cols');
+  $('#layRows').onclick = ()=>setLayout('rows');
+  $('#btnSync').onclick = toggleSyncScroll;
+
   $('#btnSide').onclick = ()=>{ $('#side').classList.toggle('hidden'); };
   $('#btnSettings').onclick = openSettings;
   $('#btnHelp').onclick = ()=>$('#helpBack').classList.add('show');
@@ -2472,7 +2573,7 @@ function doSearch(dir){
   if(t.mode==='text'){
     if(t.query!==$('#searchBox').value){ t.query=$('#searchBox').value; rebuildTextSearch(t); if(t.filterHits) renderAll(true); }
     gotoTextHit(dir); refreshRenderedTextRows(t);
-    const h=t.hits[t.curHit]; if(h){ const row=$('#content').querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
+    const h=t.hits[t.curHit]; if(h){ const row=contentOf(t).querySelector(`[data-l="${h.line}"]`); if(row)row.scrollIntoView({block:'center'}); }
   }else{
     if(t.binQuery!==$('#searchBox').value){ t.binQuery=$('#searchBox').value; rebuildBinSearch(t); }
     gotoBinHit(dir);
@@ -2487,9 +2588,55 @@ function setStyle(s){
   const t=curTab(); if(!t||t.style===s)return;
   t.style=s; LS.set('ifv_style',s); renderAll(true);
 }
+/* --- マルチペイン(4.8)：レイアウト切替・同期スクロール --- */
+function setLayout(l){
+  if(layout===l) return;
+  closeCellEd(true);
+  layout = l;
+  const pn = $('#panes');
+  pn.classList.toggle('single', l==='single');
+  pn.classList.toggle('rows', l==='rows');
+  resetPaneSizes();
+  if(l==='single'){
+    /* 分割解除：全タブを左ペインへ集約。表示中タブは維持する */
+    const keep = paneTab(0) || paneTab(1);
+    tabs.forEach(t=>{ t.pane = 0; });
+    panes[0].cur = keep ? tabs.indexOf(keep) : -1;
+    panes[1].cur = -1;
+    activePane = 0;
+    syncScroll = false;
+  }
+  paneActClass();
+  renderTabs(); renderAllPanes(true);
+}
+function toggleSyncScroll(){
+  if(layout==='single') return;
+  syncScroll = !syncScroll;
+  if(syncScroll) syncPaneScroll(paneContent(activePane));  // ONにした瞬間に位置を揃える
+  updateToolbar();
+  toast(syncScroll ? 'スクロール同期: ON（縦・横）' : 'スクロール同期: OFF');
+}
+let _syncing = false;
+function syncPaneScroll(srcEl){
+  if(!syncScroll || layout==='single' || _syncing) return;
+  const other = paneContent(srcEl===paneContent(0) ? 1 : 0);
+  _syncing = true;
+  other.scrollTop = srcEl.scrollTop;
+  other.scrollLeft = srcEl.scrollLeft;
+  _syncing = false;
+}
+function resetPaneSizes(){
+  document.querySelectorAll('#panes .pane').forEach((/** @type {any} */p)=>{ p.style.flex=''; });
+}
 function updateToolbar(){
   const t = curTab();
   const has = !!t;
+  /* レイアウト・同期(4.8)：タブの有無と無関係に操作可能 */
+  $('#laySingle').classList.toggle('on', layout==='single');
+  $('#layCols').classList.toggle('on', layout==='cols');
+  $('#layRows').classList.toggle('on', layout==='rows');
+  $('#btnSync').classList.toggle('hiddenCtl', layout==='single');
+  $('#btnSync').classList.toggle('on', !!syncScroll);
   ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
@@ -2570,7 +2717,7 @@ function renderDelimChips(tab){
           const k = t.delims.indexOf(v);
           if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
         });
-        renderAll(true);
+        renderAllPanes(true);
         toast(`区切り文字「${v}」を登録解除しました`);
       };
     }
@@ -2581,7 +2728,7 @@ function applyDisplaySettings(){
   const css = settings.font==='custom' ? (settings.fontCustom || FONTS.biz.css) : (FONTS[settings.font]||FONTS.biz).css;
   document.documentElement.style.setProperty('--mono', css);
   document.documentElement.style.setProperty('--dgap', (+settings.delimGap||0)+'ch');
-  $('#content').style.fontSize = (13*settings.zoom/100).toFixed(1)+'px';
+  document.querySelectorAll('#panes .pane > .content').forEach((/** @type {any} */c)=>{ c.style.fontSize = (13*settings.zoom/100).toFixed(1)+'px'; });
   $('#zoomReset').textContent = settings.zoom+'%';
 }
 function updateSearchCount(){
@@ -2599,14 +2746,16 @@ function updateSearchCount(){
 }
 function updateStatus(){
   const t = curTab(); const sb=$('#status');
-  if(!t){ sb.innerHTML='<span>ファイル未読み込み</span>'; return; }
+  if(!t){ sb.innerHTML = `<span>${layout!=='single' ? paneLabel(activePane)+'ペイン: ' : ''}ファイル未読み込み</span>`; return; }
   const enc = resolvedEnc(t);
-  const items = [
+  const items = [];
+  if(layout!=='single') items.push(`<b>${paneLabel(activePane)}ペイン</b>`);
+  items.push(...[
     `<b>${escText(t.name)}</b>`,
     `${fmtSize(t.bytes.length)}`,
     `モード: <b>${t.mode==='text'?'テキスト':'バイナリ'}</b>`,
     `文字コード: <b>${escText(encLabel(enc))}${t.encSel==='auto'?' (自動)':''}</b>`
-  ];
+  ]);
   if(t.mode==='text'){
     const c = t._cache;
     if(c.lines){
@@ -2731,7 +2880,7 @@ function deleteDef(i){
   $('#defsTa').value = JSON.stringify(defs, null, 2);
   $('#defsErr').textContent='';
   renderDefList();
-  renderAll(true);
+  renderAllPanes(true);
   toast(i<0 ? 'ヘッダー定義をすべて削除しました' : `定義「${delName}」を削除しました`);
 }
 function renderDelimList(){
@@ -2750,7 +2899,7 @@ function renderDelimList(){
         const k = t.delims.indexOf(v);
         if(k>=0){ t.delims.splice(k,1); t._cache.cellsKey=null; }
       });
-      renderDelimList(); renderAll(true);
+      renderDelimList(); renderAllPanes(true);
     };
     chip.appendChild(x); box.appendChild(chip);
   });
@@ -2783,7 +2932,7 @@ function initSettings(){
     applyDisplaySettings();
     $('#modalBack').classList.remove('show');
     tabs.forEach(t=>{ t._cache.cellsKey=null; });
-    renderAll(true);
+    renderAllPanes(true);
     toast(LS.ok?'保存しました':'このセッション内でのみ有効です（localStorage不可）');
   };
   $('#defsFile').onchange = async e=>{
@@ -2799,35 +2948,47 @@ function initSettings(){
 }
 
 /* =====================================================================
- * 全体描画 / 遅延描画
+ * 全体描画 / 遅延描画 / マルチペイン初期化(4.8)
  * =================================================================== */
-let observer=null;
-function setupSentinel(loadMore){
-  if(observer) observer.disconnect();
-  const sent = $('#sentinel'); if(!sent) return;
-  observer = new IntersectionObserver(es=>{
+const _observers = [null, null];   // 遅延描画のIntersectionObserver（ペインごと）
+function setupSentinel(tab, loadMore){
+  const p = tab.pane;
+  if(_observers[p]) _observers[p].disconnect();
+  const root = paneContent(p);
+  const sent = root.querySelector('.sentinel'); if(!sent) return;
+  _observers[p] = new IntersectionObserver(es=>{
     for(const en of es) if(en.isIntersecting){
       let guard=0;
       while(en.isIntersecting && loadMore() && ++guard<4){} /* 画面が埋まるまで数回 */
     }
-  }, {root:$('#content'), rootMargin:'600px'});
-  observer.observe(sent);
+  }, {root, rootMargin:'600px'});
+  _observers[p].observe(sent);
 }
-function renderAll(keepScroll){
-  const tab = curTab();
-  updateToolbar(); renderSide();
-  const content = $('#content');
+/* ペインpに panes[p].cur のタブを描画する（空ならドロップヒント） */
+function renderPane(p, keepScroll){
+  const tab = paneTab(p);
+  const content = paneContent(p);
   if(!tab){
     content.textContent='';
     content.appendChild(buildDropHint());
-    updateStatus(); return;
+    return;
   }
   if(tab.mode==='text'){ prepText(tab); if(!tab.hits.length&&tab.query)rebuildTextSearch(tab); buildTextView(tab, keepScroll); }
   else { makeBinHitSet(tab); buildBinView(tab, keepScroll); }
+}
+function renderAll(keepScroll){
+  updateToolbar(); renderSide();
+  renderPane(activePane, keepScroll);
+  updateStatus();
+}
+function renderAllPanes(keepScroll){
+  updateToolbar(); renderSide();
+  renderPane(0, keepScroll);
+  if(layout!=='single') renderPane(1, keepScroll);
   updateStatus();
 }
 function buildDropHint(){
-  const d = el('div'); d.id='drop';
+  const d = el('div','drop');
   d.innerHTML = `
     <div class="big">ここにファイルをドラッグ&amp;ドロップ</div>
     <div>または左上の「📂 開く」から選択（拡張子なしのIFファイル可・複数可）</div>
@@ -2844,13 +3005,41 @@ function initDnD(){
   window.addEventListener('drop', e=>{
     e.preventDefault(); document.body.classList.remove('dragging');
     const files = [...(e.dataTransfer?.files||[])];
-    if(files.length) openFiles(files);
+    if(!files.length) return;
+    /* 分割中はドロップした側のペインに開く(4.8) */
+    const paneEl = /** @type {any} */(e.target instanceof Element ? e.target.closest('#panes .pane') : null);
+    if(paneEl && layout!=='single') setActivePane(+paneEl.dataset.p);
+    openFiles(files);
   });
   document.addEventListener('paste', handlePaste);  // Ctrl+V でクリップボードから開く
 }
 
+/* ---------- マルチペイン(4.8)：アクティブ切替・境界ドラッグ ---------- */
+function initPanes(){
+  document.querySelectorAll('#panes .pane').forEach((pel,p)=>{
+    pel.addEventListener('mousedown', ()=>setActivePane(p));
+  });
+  const dv = $('#divider'), pn = $('#panes');
+  let dragging = false;
+  dv.addEventListener('mousedown', e=>{
+    e.preventDefault(); dragging = true;
+    dv.classList.add('drag'); document.body.style.userSelect='none';
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    const r = pn.getBoundingClientRect();
+    let ratio = layout==='rows' ? (e.clientY-r.top)/r.height : (e.clientX-r.left)/r.width;
+    ratio = Math.max(0.2, Math.min(0.8, ratio));
+    pn.querySelector('.pane').style.flex = `0 0 calc(${(ratio*100).toFixed(2)}% - 3px)`;
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(dragging){ dragging=false; dv.classList.remove('drag'); document.body.style.userSelect=''; }
+  });
+  dv.addEventListener('dblclick', resetPaneSizes);
+}
+
 /* ---------- 起動 ---------- */
-initToolbar(); initSettings(); initDnD(); initBinSelect();
+initToolbar(); initSettings(); initDnD(); initBinSelect(); initPanes();
 $('#helpVer').textContent = 'v'+APP_VERSION;
 applyDisplaySettings();
 renderAll();
