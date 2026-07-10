@@ -225,6 +225,52 @@ test('IME変換確定のEnterではセル確定・検索が発火しない', asy
   await page.evaluate(() => closeTab(tabs.length - 1));
 });
 
+test('定義の自動生成: ヘッダー行なしファイルで match/encoding/型推定rules を提案する', async () => {
+  await openBytes(page, 'IF_ORDER_20260705', readSample('IF_ORDER_20260705'));
+  await page.waitForSelector('.trow');
+  const r = await page.evaluate(() => {
+    defs = [];
+    const { draft, useFirst } = makeDefDraft(curTab());
+    return { draft, useFirst };
+  });
+  assert.equal(r.useFirst, false, 'データのみのファイルはヘッダー行なしと判定');
+  assert.equal(r.draft.match, 'IF_ORDER_*', '日付部分が*化される');
+  assert.equal(r.draft.encoding, 'shift_jis');
+  assert.equal(r.draft.delimiter, ',');
+  assert.equal(r.draft.headers[0].length, 4);
+  assert.match(r.draft.headers[0][0], /^列1$/, 'プレースホルダ列名');
+  const dateRule = r.draft.rules.find(x => x.col === 2);
+  assert.equal(dateRule?.type, 'date', '受注日列は日付と推定');
+  const numRule = r.draft.rules.find(x => x.col === 3);
+  assert.equal(numRule?.type, 'number', '金額列は数値と推定');
+});
+
+test('定義の自動生成: ヘッダー行ありのTSVは1行目を列名として取り込む', async () => {
+  const r = await page.evaluate(async () => {
+    const tsv = '商品コード\t商品名\t数量\t単価\t受注日\n' +
+      Array.from({ length: 20 }, (_, i) => `A${i}\t品目${i}\t${i * 10}\t${100 + i}\t2026070${(i % 9) + 1}`).join('\n');
+    await openFiles([new File([new TextEncoder().encode(tsv)], 'HDR_TEST_20260710.csv')]);
+    const t = curTab();
+    t.delims = ['\t']; t._cache.cellsKey = null; renderAll(true);  // 表示をタブ区切りに合わせてから生成
+    const { draft, useFirst } = makeDefDraft(t);
+    /* ボタン経由のフロー: 設定画面にドラフトが挿入される */
+    openDefDraft();
+    const taHasDraft = $('#defsTa').value.includes('商品コード');
+    const modalOpen = $('#modalBack').classList.contains('show');
+    $('#modalBack').classList.remove('show');
+    closeTab(tabs.length - 1);
+    return { draft, useFirst, taHasDraft, modalOpen };
+  });
+  assert.equal(r.useFirst, true, '1行目をヘッダーと判定');
+  assert.deepEqual(r.draft.headers[0], ['商品コード', '商品名', '数量', '単価', '受注日']);
+  assert.equal(r.draft.match, 'HDR_TEST_*.csv', '拡張子を保って*化');
+  assert.equal(r.draft.delimiter, '\t');
+  const qty = r.draft.rules.find(x => x.col === 3);
+  assert.equal(qty?.type, 'number', 'ヘッダー行を除外して型推定される');
+  assert.equal(r.taHasDraft, true, '設定画面のJSONにドラフトが挿入される');
+  assert.equal(r.modalOpen, true);
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });

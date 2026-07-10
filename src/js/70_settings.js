@@ -22,6 +22,72 @@ const SAMPLE_DEFS = [{
   widths:[6, 20, 5, 9],
   rules:[{col:1, required:true}, {col:3, type:'number'}]
 }];
+/* --- 定義の自動ドラフト生成(4.3)：開いているタブの状態から定義JSONを起こす --- */
+function looksLikeHeaderRow(tab){
+  /* 1行目がヘッダーらしいか：数値/日付が9割を占める列すべてで「1行目だけ非数値」なら真 */
+  const c = prepText(tab);
+  if(c.rows.length<2) return false;
+  const first = c.rows[0];
+  if(first.length<2 || first.some(v=>!v.trim())) return false;  // ヘッダーに空欄はない前提
+  const NUM = /^[+-]?\d+(\.\d+)?$/;
+  const isDataLike = v => NUM.test(v)||isDateLike(v);
+  let evidence=0, checked=0;
+  for(let i=0;i<first.length;i++){
+    let num=0, n=0;
+    for(let li=1; li<Math.min(c.rows.length,101); li++){
+      const v=(c.rows[li][i]??'').trim(); if(!v) continue;
+      n++; if(isDataLike(v)) num++;
+    }
+    if(n>=1 && num/n>=0.9){ checked++; if(!isDataLike(first[i].trim())) evidence++; }
+  }
+  return checked>0 && evidence===checked;
+}
+function makeDefDraft(tab){
+  const c = prepText(tab);
+  /* match: ファイル名末尾の日付・連番（6桁以上の数字）を * に置換 */
+  const m = tab.name.match(/^(.*?)(\d{6,})(\.[^.]*)?$/);
+  const match = m ? m[1]+'*'+(m[3]||'') : tab.name;
+  const useFirst = looksLikeHeaderRow(tab);
+  const nc = c.colW.length;
+  const first = c.rows[0]||[];
+  const headers = [Array.from({length:nc}, (_,i)=> useFirst ? String(first[i]??`列${i+1}`).trim() : `列${i+1}`)];
+  /* rules: 列プロファイルの型推定から提案（ヘッダー行と判定した場合は1行目を除外して集計） */
+  const prof = computeProfile(tab, useFirst?1:0);
+  const rules = [];
+  prof.forEach((col,i)=>{
+    const filled = col.n - col.empty;
+    if(!filled) return;
+    const r = {col:i+1};
+    let has = false;
+    if(col.date===filled){ r.type='date'; has=true; }
+    else if(col.num===filled){ r.type='number'; has=true; }
+    if(col.empty===0 && col.n>=2){ r.required=true; has=true; }
+    if(has) rules.push(r);
+  });
+  const draft = {
+    name: (m ? m[1].replace(/[_\-]+$/,'') : tab.name) + '（自動生成）',
+    match,
+    headers,
+  };
+  const fw = fixedWidths(tab);
+  if(fw) draft.widths = fw;
+  else if(tab.delims[0]) draft.delimiter = tab.delims[0];   // 複数有効時は先頭を採用
+  draft.encoding = resolvedEnc(tab);
+  if(rules.length) draft.rules = rules;
+  return {draft, useFirst};
+}
+function openDefDraft(){
+  const t = curTab();
+  if(!t || t.mode!=='text'){ toast('テキストモードのファイルを開いてから使用してください'); return; }
+  const {draft, useFirst} = makeDefDraft(t);
+  openSettings();
+  $('#defsTa').value = JSON.stringify([draft, ...defs], null, 2);
+  $('#defsErr').textContent =
+    `「${t.name}」からドラフトを先頭に挿入しました（ヘッダー: ${useFirst?'1行目から取り込み':'列番号プレースホルダ'}／検査ルール: ${draft.rules?draft.rules.length+'件を型推定から提案':'なし'}）。`
+    + ' 名前・ヘッダーを整えて「保存して閉じる」で登録されます。';
+  $('#defsTa').scrollTop = 0;
+}
+
 function openSettings(){
   $('#lsWarn').classList.toggle('hiddenCtl', LS.ok);
   $('#chkContDot').checked = settings.contDot;

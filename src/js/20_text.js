@@ -286,12 +286,13 @@ async function copyColumn(tab, ci){
 }
 
 /* --- 列プロファイル(4.7)：列ごとの統計 --- */
-function computeProfile(tab){
+function computeProfile(tab, startRow){
   const c = prepText(tab);
   const nc = c.colW.length;
   const NUMRE = /^[+-]?\d+(\.\d+)?$/;
   const cols = Array.from({length:nc}, ()=>({n:0, empty:0, uniq:new Set(), over:false, minL:Infinity, maxL:0, num:0, date:0}));
-  for(const r of c.rows){
+  for(let ri=startRow||0; ri<c.rows.length; ri++){
+    const r = c.rows[ri];
     for(let i=0; i<r.length && i<nc; i++){
       const v = r[i], t = cols[i], tv = v.trim();
       t.n++;

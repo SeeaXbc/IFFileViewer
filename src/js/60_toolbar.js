@@ -57,6 +57,7 @@ function initToolbar(){
   $('#zoomIn').onclick  = ()=>zoomStep(1);
   $('#zoomOut').onclick = ()=>zoomStep(-1);
   $('#zoomReset').onclick = ()=>{ settings.zoom=100; LS.set('ifv_settings', settings); applyDisplaySettings(); };
+  $('#btnMakeDef').onclick = openDefDraft;
   $('#selDef').onchange = ()=>{
     const t=curTab(); if(!t)return;
     const v=$('#selDef').value;
@@ -217,7 +218,7 @@ function updateToolbar(){
   $('#layRows').classList.toggle('on', layout==='rows');
   $('#btnSync').classList.toggle('hiddenCtl', layout==='single');
   $('#btnSync').classList.toggle('on', !!syncScroll);
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
