@@ -1,0 +1,17 @@
+[
+  {
+    "name": "受注IF（検査ルールの例）",
+    "match": "IF_ORDER_*",
+    "delimiter": ",",
+    "encoding": "shift_jis",
+    "headers": [
+      ["顧客ID", "受注日", "金額", "区分", "備考"]
+    ],
+    "rules": [
+      { "col": 1, "required": true, "pattern": "^C\\d+$" },
+      { "col": 2, "type": "date", "required": true },
+      { "col": 3, "type": "number", "required": true },
+      { "col": 4, "pattern": "^[12]$" }
+    ]
+  }
+]

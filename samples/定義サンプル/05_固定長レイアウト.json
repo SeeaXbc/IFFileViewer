@@ -1,0 +1,22 @@
+[
+  {
+    "name": "固定長IF（バイト幅指定の例）",
+    "match": "IF_FIXED_*",
+    "encoding": "shift_jis",
+    "widths": [6, 20, 5, 9],
+    "headers": [
+      ["伝票番号", "取引先名", "数量", "単価"]
+    ],
+    "details": [
+      "伝票番号。D+数字5桁。",
+      "取引先名。全角10文字（20バイト）まで、右スペース詰め。",
+      "数量。数字5桁・右詰めゼロ埋め。必須。",
+      "単価。数字9桁・右詰めゼロ埋め。"
+    ],
+    "rules": [
+      { "col": 1, "required": true, "pattern": "^D\\d{5}$" },
+      { "col": 3, "type": "number", "required": true },
+      { "col": 4, "type": "number" }
+    ]
+  }
+]
