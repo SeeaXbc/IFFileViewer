@@ -517,8 +517,8 @@ function buildTextView(tab, keepScroll){
   const c = prepText(tab);
   recountTextMarkers(tab);
   if(tab.valOn) ensureValidation(tab);
-  /* 行フィルタ(6章)：検索ヒット行のみ表示。表示行リストを毎ビルドで再計算 */
-  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : null;
+  /* 行フィルタ(6章)：検索ヒット行のみ／差分行のみ(4.9)。表示行リストを毎ビルドで再計算 */
+  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : diffRowsForFilter(tab);
   const def = resolvedDef(tab);
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
@@ -629,6 +629,9 @@ function buildTextRow(tab, li){
   /* 行マーカー(4.4) */
   const lineMk = tab.markers.find(m=>m.enabled&&m.type==='line'&&parseNumSpec(m.value).test(li+1));
   if(lineMk) row.style.background = lineMk.color;
+  /* 比較(4.9)：差分セル・相手なし行のハイライト */
+  const dm = ensureDiff();
+  if(dm && (tab.pane===0 ? dm.miss0 : dm.miss1).has(li)) row.classList.add('dfmiss');
   const colMks = tab.markers.filter(m=>m.enabled&&m.type==='col');
   row.appendChild(makeLn(tab, String(li+1)));
   const arr = styleArrForLine(tab, li, line.length);
@@ -639,11 +642,13 @@ function buildTextRow(tab, li){
     const dl = i<cells.length-1 ? ds[i] : null;
     const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
     const ngReason = (tab.valOn && c.valNG) ? c.valNG.get(li+':'+i) : null;
+    const isDiff = dm && dm.cells.has(li+':'+i);
     if(tab.style==='excel'){
       const cell = el('span','xcell');
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
       if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
+      if(isDiff) cell.classList.add('dfcell');
       cell.style.width = `calc(${cellOuterW(tab,c,i)||1}ch + 9px)`;
       if(colMk) cell.style.background = colMk.color;
       appendRuns(cell, line, arr, vs, ve);
@@ -653,6 +658,7 @@ function buildTextRow(tab, li){
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
       if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
+      if(isDiff) cell.classList.add('dfcell');
       if(colMk) cell.style.background = colMk.color;
       const vsp = el('span','v');
       vsp.style.minWidth = (c.colW[i]||1)+'ch';

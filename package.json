@@ -1,6 +1,6 @@
 {
   "name": "iffileviewer",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "description": "IFファイルビューア（単一HTML）の開発用ツール一式。配布物は IFファイルビューア.html のみ",
   "scripts": {

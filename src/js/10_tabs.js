@@ -148,6 +148,7 @@ function moveTabToPane(i, p){
     for(let k=tabs.length-1;k>=0;k--) if(k!==i && tabs[k].pane===from){ panes[from].cur=k; break; }
   }
   activePane = p;
+  _diff = null;
   paneActClass();
   renderTabs(); renderAllPanes();
   toast(`「${t.name}」を${paneLabel(p)}のペインへ移動しました`);
@@ -176,6 +177,7 @@ function closeTab(i){
   panes.forEach((pn,p)=>{
     if(pn.cur<0) for(let k=tabs.length-1;k>=0;k--) if(tabs[k].pane===p){ pn.cur=k; break; }
   });
+  _diff = null;
   renderTabs(); renderAllPanes();
 }
 

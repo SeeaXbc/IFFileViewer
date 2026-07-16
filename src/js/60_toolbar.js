@@ -119,6 +119,12 @@ function initToolbar(){
   $('#layCols').onclick = ()=>setLayout('cols');
   $('#layRows').onclick = ()=>setLayout('rows');
   $('#btnSync').onclick = toggleSyncScroll;
+  $('#btnDiff').onclick = toggleDiff;
+  $('#btnDiffOnly').onclick = toggleDiffFilter;
+  $('#btnDiffJump').onclick = jumpNextDiff;
+  $('#btnDiffExp').onclick = e=>exportRows(diffExportRows(),
+    `${paneTab(0)?.name??''}_vs_${paneTab(1)?.name??''}_差分.csv`, e.ctrlKey||e.metaKey);
+  $('#btnValExp').onclick = e=>{ const t=curTab(); if(t) exportRows(valExportRows(t), `${t.name}_検査NG.csv`, e.ctrlKey||e.metaKey); };
 
   $('#btnSide').onclick = ()=>{ $('#side').classList.toggle('hidden'); };
   $('#btnSettings').onclick = openSettings;
@@ -186,6 +192,7 @@ function setLayout(l){
     panes[1].cur = -1;
     activePane = 0;
     syncScroll = false;
+    diffOn = false; diffFilter = false; _diff = null;
   }
   paneActClass();
   renderTabs(); renderAllPanes(true);
@@ -218,6 +225,17 @@ function updateToolbar(){
   $('#layRows').classList.toggle('on', layout==='rows');
   $('#btnSync').classList.toggle('hiddenCtl', layout==='single');
   $('#btnSync').classList.toggle('on', !!syncScroll);
+  /* 比較(4.9)：状態の自己修復＋ボタン表示 */
+  syncDiffState();
+  const dm = diffOn ? ensureDiff() : null;
+  $('#btnDiff').classList.toggle('hiddenCtl', layout==='single');
+  $('#btnDiff').classList.toggle('on', !!diffOn);
+  $('#btnDiff').textContent = dm ? `⇄ 比較 ${dm.rows.size.toLocaleString()}行` : '⇄ 比較';
+  const hasDiff = !!(dm && dm.rows.size);
+  $('#btnDiffOnly').classList.toggle('hiddenCtl', !dm);
+  $('#btnDiffOnly').classList.toggle('on', !!diffFilter);
+  $('#btnDiffJump').classList.toggle('hiddenCtl', !hasDiff);
+  $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
   ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
@@ -260,6 +278,7 @@ function updateValCtls(t){
   $('#btnVal').textContent = (t && t.valOn) ? `✔ 検査 NG:${ngc.toLocaleString()}` : '✔ 検査';
   $('#btnValJump').classList.toggle('hiddenCtl', !ngc);
   $('#btnValJump').textContent = 'NG行へ▼';
+  $('#btnValExp').classList.toggle('hiddenCtl', !ngc);
 }
 function delimChipLabel(v){
   if(v===',') return ',';
@@ -358,6 +377,10 @@ function updateStatus(){
       const ch = (st && st.types[t.selA]===1) ? (st.chars.get(t.selA)||'') : '';
       items.push(`選択: <b>0x${t.selA.toString(16).toUpperCase().padStart(8,'0')}</b> (${t.selA}) [${bs}]${ch?` 「${escText(ch)}」`:''} — Escで解除`);
     }
+  }
+  if(diffActive()){
+    const dmS = ensureDiff();
+    if(dmS) items.push(`⇄ 差分: <b>${dmS.cells.size.toLocaleString()}${dmS.over?'+':''} セル / ${dmS.rows.size.toLocaleString()} 行</b>${diffFilter?'（差分行のみ表示）':''}`);
   }
   const ed = t && t.edit;
   if(ed) items.push(`✏ <b>編集モード</b>（元ファイルは変更されません）${ed.edits.size?` / 編集済み ${ed.edits.size} セル${ed.unsaved?'<b>（未保存）</b>':'（保存済み）'}`:''}`);

@@ -196,6 +196,7 @@ function finishCellChanges(tab){
   c.lower = null;
   recountTextMarkers(tab);
   rebuildTextSearch(tab);
+  diffInvalidate(tab);  // 比較中なら差分を再計算し相手ペインも更新(4.9)
   if(paneTab(tab.pane)===tab){  // 所属ペインに表示中でなければDOMを触らない
     if(tab._growW){ tab._growW=false; renderPane(tab.pane, true); }
     else refreshRenderedTextRows(tab);
