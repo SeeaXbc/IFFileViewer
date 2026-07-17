@@ -236,11 +236,18 @@ function updateToolbar(){
   $('#btnDiffOnly').classList.toggle('on', !!diffFilter);
   $('#btnDiffJump').classList.toggle('hiddenCtl', !hasDiff);
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
+  $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
+  updateToolbar3();
   ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
-  if(!has){ $('#searchCount').textContent=''; return; }
+  if(!has){
+    $('#searchCount').textContent='';
+    ['#btnValJump','#btnValExp'].forEach(x=>$(x).classList.add('hiddenCtl'));  // 検査残骸で3段目が残らないように
+    updateToolbar3();
+    return;
+  }
   /* 編集モード中は前提条件（区切り・文字コード・改行・定義・モード固定）を担保するためロック(9章) */
   const lock = !!t.edit;
   ['#selEnc','#selNl','#delimAdd','#selDef','#btnText','#btnBin'].forEach(s=>{ $(s).disabled = lock; });
@@ -269,6 +276,17 @@ function updateToolbar(){
   sd.value = String(t.defSel);
   updateSearchCount();
 }
+/* コンテキストバー(6章)：比較/検査/編集の出現式コントロール行。
+   中身のあるグループだけ表示し、すべて空なら行ごと隠す */
+function updateToolbar3(){
+  const g1 = !$('#btnDiffOnly').classList.contains('hiddenCtl');
+  const g2 = !$('#btnValJump').classList.contains('hiddenCtl') || !$('#btnValExp').classList.contains('hiddenCtl');
+  const g3 = !$('#editCtls').classList.contains('hiddenCtl');
+  $('#grpDiff3').style.display = g1 ? '' : 'none';
+  $('#grpVal3').style.display = g2 ? '' : 'none';
+  $('#grpEdit3').style.display = g3 ? '' : 'none';
+  $('#toolbar3').style.display = (g1||g2||g3) ? '' : 'none';
+}
 function updateValCtls(t){
   /* 検査ボタン(4.7)：rules を持つ定義が有効なときのみ表示 */
   const rules = t ? valRules(t) : [];
@@ -279,6 +297,7 @@ function updateValCtls(t){
   $('#btnValJump').classList.toggle('hiddenCtl', !ngc);
   $('#btnValJump').textContent = 'NG行へ▼';
   $('#btnValExp').classList.toggle('hiddenCtl', !ngc);
+  updateToolbar3();
 }
 function delimChipLabel(v){
   if(v===',') return ',';

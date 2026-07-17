@@ -413,6 +413,7 @@ function updateEditCtls(){
   const on = !!(t && t.edit);
   $('#btnEditMode').classList.toggle('on', on);
   $('#editCtls').classList.toggle('hiddenCtl', !on);
+  updateToolbar3();
   if(!on) return;
   if(document.activeElement !== $('#saveNameIn')) $('#saveNameIn').value = t.edit.saveName;
   $('#editCount').textContent = t.edit.edits.size

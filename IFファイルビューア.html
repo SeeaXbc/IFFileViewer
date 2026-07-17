@@ -30,10 +30,11 @@ label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-sel
 .tab .x{border:none;background:none;padding:0 4px;border-radius:3px;color:var(--sub)}
 .tab .x:hover{background:#d0d5dd;color:#000}
 #btnOpen{margin-left:6px;flex:none}
-#toolbar,#toolbar2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
+#toolbar,#toolbar2,#toolbar3{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
   border-top:1px solid var(--border);flex:none}
 #toolbar2{border-top:1px dashed var(--border);padding-top:5px;padding-bottom:5px;background:#fafbfd}
-#toolbar2+#main{border-top:1px solid var(--border)}
+#toolbar3+#main{border-top:1px solid var(--border)}
+#toolbar3{background:#f2f6fb}
 #toolbar .grp,#toolbar2 .grp{display:inline-flex;align-items:center;gap:5px}
 #toolbar .lbl,#toolbar2 .lbl{color:var(--sub);font-size:12px}
 #delimChips{display:inline-flex;gap:3px;flex-wrap:wrap}
@@ -185,6 +186,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 
 /* ---- 比較（差分）(4.9) ---- */
 .dfcell{outline:1px solid #1c7ed6;outline-offset:-1px;background:#e7f5ff}
+.dfch{background:#74c0fc;border-radius:2px}
 .trow.dfmiss{background:#d0ebff}
 #btnDiff.on,#btnDiffOnly.on{background:#1c7ed6;border-color:#1c7ed6;color:#fff}
 
@@ -232,9 +234,6 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
     <span class="seg"><button id="laySingle" title="分割なし">▭</button><button id="layCols" title="左右2ペイン">◫</button><button id="layRows" title="上下2ペイン">⬒</button></span>
     <button id="btnSync" class="hiddenCtl" title="2つのペインのスクロールを同期（縦・横）">🔗 同期</button>
     <button id="btnDiff" class="hiddenCtl" title="2つのペインを行番号ベースでセル単位比較（テキストモードのみ）">⇄ 比較</button>
-    <button id="btnDiffOnly" class="hiddenCtl" title="差分を含む行のみ表示">差分のみ</button>
-    <button id="btnDiffJump" class="hiddenCtl" title="次の差分行へ（両ペインを同じ行に揃えます）">差分行へ▼</button>
-    <button id="btnDiffExp" class="hiddenCtl" title="差分一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ 差分出力</button>
     <button id="btnSide">🖍 マーカー</button>
     <button id="btnSettings">⚙ 設定</button>
     <button id="btnHelp" title="使い方">❓ ヘルプ</button>
@@ -275,11 +274,29 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
   <div class="grp">
     <button id="btnProf" title="列ごとの統計（空欄・ユニーク・文字数・型推定）を表示">📊 列情報</button>
     <button id="btnVal" title="ヘッダー定義の rules によるデータ検査（NGセルを赤枠表示）">✔ 検査</button>
-    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
-    <button id="btnValExp" class="hiddenCtl" title="検査NG一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ NG出力</button>
   </div>
   <div class="grp">
     <button id="btnEditMode" title="セル単位の編集モード（元ファイルは変更されません）">✏ 編集</button>
+  </div>
+</div>
+
+<!-- コンテキストバー(6章)：比較・検査・編集の出現式コントロール。
+     1〜2段目に押し込むと折り返しで行がガタつくため、専用の3段目に分離 -->
+<div id="toolbar3" style="display:none">
+  <div class="grp" id="grpDiff3" style="display:none">
+    <span class="lbl">⇄ 比較</span>
+    <button id="btnDiffOnly" class="hiddenCtl" title="差分を含む行のみ表示">差分のみ</button>
+    <button id="btnDiffJump" class="hiddenCtl" title="次の差分行へ（両ペインを同じ行に揃えます）">差分行へ▼</button>
+    <button id="btnDiffExp" class="hiddenCtl" title="差分一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ 差分出力</button>
+    <span id="diffInfo" class="lbl"></span>
+  </div>
+  <div class="grp" id="grpVal3" style="display:none">
+    <span class="lbl">✔ 検査</span>
+    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
+    <button id="btnValExp" class="hiddenCtl" title="検査NG一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ NG出力</button>
+  </div>
+  <div class="grp" id="grpEdit3" style="display:none">
+    <span class="lbl">✏ 編集</span>
     <span id="editCtls" class="hiddenCtl">
       <span class="lbl">保存名</span><input type="text" id="saveNameIn" spellcheck="false" title="保存するファイル名（保存先に同名があれば連番を付けます）">
       <button id="btnSaveDir"></button>
@@ -419,7 +436,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>ファイルは<b>アクティブなペイン</b>（アクセント色の枠）に開きます。ペインをクリックするとアクティブが切り替わり、ツールバー・検索・ステータスバーはアクティブペインのタブに作用します。D&amp;Dは<b>ドロップした側のペイン</b>に開きます。</li>
         <li>分割中はタブに所属ペインのバッジ（◧/◨）が付き、<b>タブを右クリックで反対側のペインへ移動</b>できます（編集モード中のタブも移動可）。</li>
         <li><b>🔗 同期</b>：ONにすると2つのペインのスクロール（縦・横）が連動します。同レイアウトのIF新旧比較に便利です。</li>
-        <li><b>⇄ 比較</b>：分割中にONにすると、2つのペインを<b>行番号ベースでセル単位比較</b>し、差分セルを青枠で表示します（相手にない行は行ごと青背景）。「差分のみ」で差分行だけに絞り込み、「差分行へ▼」で両ペインを同じ行に揃えてジャンプ。「⎘ 差分出力」で一覧をTSVコピー（Ctrl+クリックでCSV保存）。<b>編集モードと併用すると、右のセルを直すたびに差分が減っていく</b>ため修正作業に便利です。※並び順が違うファイル同士は行がずれて多数の差分になります（行番号ベースのため）。</li>
+        <li><b>⇄ 比較</b>：分割中にONにすると、2つのペインを<b>行番号ベースでセル単位比較</b>し、差分セルを青枠で表示します（相手にない行は行ごと青背景）。差分セル内では<b>実際に違う文字だけが濃い青</b>で強調されます（共通の前置き・後置きを除いた範囲）。比較・検査・編集の操作ボタンは、ONにしたときだけ現れる<b>3段目のバー</b>にまとまって表示されます。「差分のみ」で差分行だけに絞り込み、「差分行へ▼」で両ペインを同じ行に揃えてジャンプ。「⎘ 差分出力」で一覧をTSVコピー（Ctrl+クリックでCSV保存）。<b>編集モードと併用すると、右のセルを直すたびに差分が減っていく</b>ため修正作業に便利です。※並び順が違うファイル同士は行がずれて多数の差分になります（行番号ベースのため）。</li>
         <li>ペイン境界は<b>ドラッグで比率変更</b>（ダブルクリックで50%に戻る）。分割を解除すると全タブが左（上）ペインに集約されます。</li>
         <li>分割状態は保存されません（次回起動時は単一ペイン）。</li>
       </ul>
@@ -542,7 +559,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.7.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.8.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -1307,8 +1324,8 @@ function appendRuns(parent, text, arr, s, e){
     const seg = text.slice(i,j);
     if(!st) appendVis(parent, seg);
     else{
-      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':''));
-      if(st!==SEARCH && st!==SEARCH_CUR) sp.style.background = st.color;
+      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':(st===DIFFCH?'dfch':'')));
+      if(st!==SEARCH && st!==SEARCH_CUR && st!==DIFFCH) sp.style.background = st.color;
       appendVis(sp, seg);
       parent.appendChild(sp);
     }
@@ -1470,7 +1487,8 @@ function buildTextRow(tab, li){
   if(dm && (tab.pane===0 ? dm.miss0 : dm.miss1).has(li)) row.classList.add('dfmiss');
   const colMks = tab.markers.filter(m=>m.enabled&&m.type==='col');
   row.appendChild(makeLn(tab, String(li+1)));
-  const arr = styleArrForLine(tab, li, line.length);
+  let arr = styleArrForLine(tab, li, line.length);
+  const otherRows = dm ? paneTab(1-tab.pane)?._cache.rows : null;
   const ds = c.rowDelims[li];
   let off=0;
   for(let i=0;i<cells.length;i++){
@@ -1479,6 +1497,17 @@ function buildTextRow(tab, li){
     const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
     const ngReason = (tab.valOn && c.valNG) ? c.valNG.get(li+':'+i) : null;
     const isDiff = dm && dm.cells.has(li+':'+i);
+    /* 差分セル内の「実際に違う文字」だけを濃色ハイライト(4.9) */
+    if(isDiff && otherRows){
+      const ov = otherRows[li]?.[i];
+      if(typeof ov==='string'){
+        const [ds,de] = charDiffRange(v, ov);
+        if(de>ds){
+          if(!arr) arr = new Array(line.length).fill(null);
+          for(let j=vs+ds; j<vs+de && j<line.length; j++) if(!arr[j]) arr[j]=DIFFCH;
+        }
+      }
+    }
     if(tab.style==='excel'){
       const cell = el('span','xcell');
       cell.dataset.c = i;
@@ -2119,6 +2148,17 @@ function diffInvalidate(changedTab){
   }
 }
 
+/* --- 文字単位ハイライト(4.9)：共通の前置き/後置きを除いた差分範囲 --- */
+const DIFFCH = {t:'dch'};   // styleArrForLine 系の描画番兵（appendRuns が .dfch にする）
+function charDiffRange(a, b){
+  let s = 0;
+  const la = a.length, lb = b.length;
+  while(s<la && s<lb && a[s]===b[s]) s++;
+  let ea = la, eb = lb;
+  while(ea>s && eb>s && a[ea-1]===b[eb-1]){ ea--; eb--; }
+  return [s, ea];   // a 側の差分範囲。純粋な挿入（相手側のみ追加）は幅0
+}
+
 /* --- エクスポート(4.7/4.9)：TSVをクリップボードへ。Ctrl+クリックでCSV保存 --- */
 function tsvEscape(v){ return String(v??'').replace(/[\t\r\n]/g,' '); }
 async function exportRows(rows, csvName, viaCtrl){
@@ -2594,6 +2634,7 @@ function updateEditCtls(){
   const on = !!(t && t.edit);
   $('#btnEditMode').classList.toggle('on', on);
   $('#editCtls').classList.toggle('hiddenCtl', !on);
+  updateToolbar3();
   if(!on) return;
   if(document.activeElement !== $('#saveNameIn')) $('#saveNameIn').value = t.edit.saveName;
   $('#editCount').textContent = t.edit.edits.size
@@ -2846,11 +2887,18 @@ function updateToolbar(){
   $('#btnDiffOnly').classList.toggle('on', !!diffFilter);
   $('#btnDiffJump').classList.toggle('hiddenCtl', !hasDiff);
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
+  $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
+  updateToolbar3();
   ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
-  if(!has){ $('#searchCount').textContent=''; return; }
+  if(!has){
+    $('#searchCount').textContent='';
+    ['#btnValJump','#btnValExp'].forEach(x=>$(x).classList.add('hiddenCtl'));  // 検査残骸で3段目が残らないように
+    updateToolbar3();
+    return;
+  }
   /* 編集モード中は前提条件（区切り・文字コード・改行・定義・モード固定）を担保するためロック(9章) */
   const lock = !!t.edit;
   ['#selEnc','#selNl','#delimAdd','#selDef','#btnText','#btnBin'].forEach(s=>{ $(s).disabled = lock; });
@@ -2879,6 +2927,17 @@ function updateToolbar(){
   sd.value = String(t.defSel);
   updateSearchCount();
 }
+/* コンテキストバー(6章)：比較/検査/編集の出現式コントロール行。
+   中身のあるグループだけ表示し、すべて空なら行ごと隠す */
+function updateToolbar3(){
+  const g1 = !$('#btnDiffOnly').classList.contains('hiddenCtl');
+  const g2 = !$('#btnValJump').classList.contains('hiddenCtl') || !$('#btnValExp').classList.contains('hiddenCtl');
+  const g3 = !$('#editCtls').classList.contains('hiddenCtl');
+  $('#grpDiff3').style.display = g1 ? '' : 'none';
+  $('#grpVal3').style.display = g2 ? '' : 'none';
+  $('#grpEdit3').style.display = g3 ? '' : 'none';
+  $('#toolbar3').style.display = (g1||g2||g3) ? '' : 'none';
+}
 function updateValCtls(t){
   /* 検査ボタン(4.7)：rules を持つ定義が有効なときのみ表示 */
   const rules = t ? valRules(t) : [];
@@ -2889,6 +2948,7 @@ function updateValCtls(t){
   $('#btnValJump').classList.toggle('hiddenCtl', !ngc);
   $('#btnValJump').textContent = 'NG行へ▼';
   $('#btnValExp').classList.toggle('hiddenCtl', !ngc);
+  updateToolbar3();
 }
 function delimChipLabel(v){
   if(v===',') return ',';

@@ -471,8 +471,8 @@ function appendRuns(parent, text, arr, s, e){
     const seg = text.slice(i,j);
     if(!st) appendVis(parent, seg);
     else{
-      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':''));
-      if(st!==SEARCH && st!==SEARCH_CUR) sp.style.background = st.color;
+      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':(st===DIFFCH?'dfch':'')));
+      if(st!==SEARCH && st!==SEARCH_CUR && st!==DIFFCH) sp.style.background = st.color;
       appendVis(sp, seg);
       parent.appendChild(sp);
     }
@@ -634,7 +634,8 @@ function buildTextRow(tab, li){
   if(dm && (tab.pane===0 ? dm.miss0 : dm.miss1).has(li)) row.classList.add('dfmiss');
   const colMks = tab.markers.filter(m=>m.enabled&&m.type==='col');
   row.appendChild(makeLn(tab, String(li+1)));
-  const arr = styleArrForLine(tab, li, line.length);
+  let arr = styleArrForLine(tab, li, line.length);
+  const otherRows = dm ? paneTab(1-tab.pane)?._cache.rows : null;
   const ds = c.rowDelims[li];
   let off=0;
   for(let i=0;i<cells.length;i++){
@@ -643,6 +644,17 @@ function buildTextRow(tab, li){
     const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
     const ngReason = (tab.valOn && c.valNG) ? c.valNG.get(li+':'+i) : null;
     const isDiff = dm && dm.cells.has(li+':'+i);
+    /* 差分セル内の「実際に違う文字」だけを濃色ハイライト(4.9) */
+    if(isDiff && otherRows){
+      const ov = otherRows[li]?.[i];
+      if(typeof ov==='string'){
+        const [ds,de] = charDiffRange(v, ov);
+        if(de>ds){
+          if(!arr) arr = new Array(line.length).fill(null);
+          for(let j=vs+ds; j<vs+de && j<line.length; j++) if(!arr[j]) arr[j]=DIFFCH;
+        }
+      }
+    }
     if(tab.style==='excel'){
       const cell = el('span','xcell');
       cell.dataset.c = i;

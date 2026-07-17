@@ -46,6 +46,39 @@ test('比較ON: セル差分と相手なし行を検出し、両ペインにハ�
   assert.equal(r.status, true);
 });
 
+test('文字単位ハイライト: 差分セル内の違う文字だけが .dfch で強調される', async () => {
+  const r = await page.evaluate(() => {
+    /* 2行目: 2000 vs 9999（全文字違い）/ 3行目: 区分 1 vs 9（1文字） */
+    const dch1 = [...paneContent(1).querySelectorAll('.trow[data-l="1"] .dfch')].map(e => e.textContent);
+    const dch0 = [...paneContent(0).querySelectorAll('.trow[data-l="1"] .dfch')].map(e => e.textContent);
+    const range = charDiffRange('20260701', '20260709');
+    const insert = charDiffRange('123', '1234');
+    return { dch1, dch0, range, insert };
+  });
+  assert.deepEqual(r.dch1, ['9999'], '右ペインの差分文字');
+  assert.deepEqual(r.dch0, ['2000'], '左ペインの差分文字');
+  assert.deepEqual(r.range, [7, 8], '共通プレフィックス/サフィックスを除いた範囲');
+  assert.deepEqual(r.insert, [3, 3], '純粋な挿入は幅0');
+});
+
+test('コンテキストバー: 比較ONで表示・OFFで非表示、1〜2段目の内容は不変', async () => {
+  const r = await page.evaluate(() => {
+    const bar3on = $('#toolbar3').style.display !== 'none';
+    const grpDiff = $('#grpDiff3').style.display !== 'none';
+    const tb1Count = $('#toolbar').querySelectorAll('button').length;
+    toggleDiff();   // OFF
+    const bar3off = $('#toolbar3').style.display !== 'none';
+    toggleDiff();   // ONに戻す
+    const tb1Count2 = $('#toolbar').querySelectorAll('button').length;
+    return { bar3on, grpDiff, bar3off, tb1Same: tb1Count === tb1Count2, info: $('#diffInfo').textContent };
+  });
+  assert.equal(r.bar3on, true, '比較ON中は3段目が表示される');
+  assert.equal(r.grpDiff, true);
+  assert.equal(r.bar3off, false, '比較OFFで3段目が消える');
+  assert.equal(r.tb1Same, true, '1段目のボタン数は比較ON/OFFで変わらない');
+  assert.match(r.info, /セル.*行/);
+});
+
 test('差分行のみフィルタ: 両ペインが差分行に絞られ、行番号は元のまま', async () => {
   const r = await page.evaluate(() => {
     toggleDiffFilter();

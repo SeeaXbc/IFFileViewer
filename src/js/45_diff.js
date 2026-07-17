@@ -100,6 +100,17 @@ function diffInvalidate(changedTab){
   }
 }
 
+/* --- 文字単位ハイライト(4.9)：共通の前置き/後置きを除いた差分範囲 --- */
+const DIFFCH = {t:'dch'};   // styleArrForLine 系の描画番兵（appendRuns が .dfch にする）
+function charDiffRange(a, b){
+  let s = 0;
+  const la = a.length, lb = b.length;
+  while(s<la && s<lb && a[s]===b[s]) s++;
+  let ea = la, eb = lb;
+  while(ea>s && eb>s && a[ea-1]===b[eb-1]){ ea--; eb--; }
+  return [s, ea];   // a 側の差分範囲。純粋な挿入（相手側のみ追加）は幅0
+}
+
 /* --- エクスポート(4.7/4.9)：TSVをクリップボードへ。Ctrl+クリックでCSV保存 --- */
 function tsvEscape(v){ return String(v??'').replace(/[\t\r\n]/g,' '); }
 async function exportRows(rows, csvName, viaCtrl){
