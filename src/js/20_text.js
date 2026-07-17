@@ -269,20 +269,30 @@ function gotoBinOffset(tab, off){
   if(rowEl){ rowEl.scrollIntoView({block:'center'}); flashRow(rowEl); }
 }
 
-/* --- 列コピー：ヘッダークリック / Alt+セルクリック --- */
-async function copyColumn(tab, ci){
-  if(!(ci>=0)) return;
-  const c = prepText(tab);
-  const text = c.rows.map(r=>r[ci]??'').join('\n');
-  let ok = true;
-  try{ await navigator.clipboard.writeText(text); }
+/* --- 行/列コピー(4.5)：行番号クリック＝行 / ヘッダークリック・Alt+セルクリック＝列 --- */
+async function copyTextToClipboard(text){
+  try{ await navigator.clipboard.writeText(text); return true; }
   catch(err){
     const ta = el('textarea'); ta.value = text; ta.style.cssText='position:fixed;left:-9999px';
     document.body.appendChild(ta); ta.select();
+    let ok = false;
     try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
     document.body.removeChild(ta);
+    return ok;
   }
+}
+async function copyColumn(tab, ci){
+  if(!(ci>=0)) return;
+  const c = prepText(tab);
+  const ok = await copyTextToClipboard(c.rows.map(r=>r[ci]??'').join('\n'));
   toast(ok ? `第${ci+1}列（${c.rows.length.toLocaleString()} 行）をコピーしました` : 'コピーに失敗しました');
+}
+async function copyRow(tab, li){
+  const c = prepText(tab);
+  const line = c.lines[li];
+  if(line==null) return;
+  const ok = await copyTextToClipboard(line);
+  toast(ok ? `${(li+1).toLocaleString()} 行目をコピーしました（区切り文字を含む元テキスト・${line.length.toLocaleString()} 文字）` : 'コピーに失敗しました');
 }
 
 /* --- 列プロファイル(4.7)：列ごとの統計 --- */
@@ -571,8 +581,14 @@ function buildTextView(tab, keepScroll){
       }
     });
   }
-  /* Alt+クリックで列コピー（編集モード以外でも有効） */
+  /* 行番号クリックで行コピー / Alt+セルクリックで列コピー(4.5) */
   rowsDiv.addEventListener('click', e=>{
+    const ln = e.target.closest('.ln');
+    if(ln){
+      const row = e.target.closest('.trow');
+      if(row) copyRow(tab, +row.dataset.l);
+      return;
+    }
     if(!e.altKey) return;
     const cell = e.target.closest('.xcell,.cell'); if(!cell) return;
     e.preventDefault();
@@ -609,6 +625,7 @@ function cellOuterW(tab,c,i){
 function makeLn(tab, text){
   const s = el('span','ln', text);
   s.style.width = (tab._lnW+2)+'ch';
+  if(text) s.title = 'クリックで行をコピー（区切り文字を含む元テキスト）';
   return s;
 }
 function appendTextRows(tab, n){

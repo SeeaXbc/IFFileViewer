@@ -110,6 +110,8 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 .ln{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;text-align:right;
   padding:0 8px 0 4px;margin-right:6px;user-select:none;border-right:1px solid var(--border)}
 .hdrblock .ln{background:#f0ead6;border-right:1px solid #d9d2b8}
+.trow .ln{cursor:pointer}
+.trow .ln:hover{color:var(--accent);background:#e7f0ff}
 .cell{display:inline-block;vertical-align:top}
 .cell .v{display:inline-block;vertical-align:top}
 .cell .dl{display:inline-block;vertical-align:top;color:#b03060;margin-right:var(--dgap)}
@@ -464,6 +466,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
       <ul>
         <li><kbd>Ctrl+G</kbd>：テキストモードは<b>行番号</b>、バイナリモードは<b>オフセット</b>（10進または <code>0x</code> 付き16進）へジャンプします。</li>
         <li><b>列コピー</b>：ヘッダーセルの<b>クリック</b>、またはデータセルの <kbd>Alt</kbd>+クリックで、その列の全行の値をクリップボードへコピーします（1行1値）。</li>
+        <li><b>行コピー</b>：<b>行番号のクリック</b>で、その行を<b>区切り文字を含む元テキスト</b>のままコピーします（マウスドラッグでの範囲選択より確実です）。</li>
       </ul>
 
       <h3>正規表現サンプル</h3>
