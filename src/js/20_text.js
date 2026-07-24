@@ -269,20 +269,30 @@ function gotoBinOffset(tab, off){
   if(rowEl){ rowEl.scrollIntoView({block:'center'}); flashRow(rowEl); }
 }
 
-/* --- 列コピー：ヘッダークリック / Alt+セルクリック --- */
-async function copyColumn(tab, ci){
-  if(!(ci>=0)) return;
-  const c = prepText(tab);
-  const text = c.rows.map(r=>r[ci]??'').join('\n');
-  let ok = true;
-  try{ await navigator.clipboard.writeText(text); }
+/* --- 行/列コピー(4.5)：行番号クリック＝行 / ヘッダークリック・Alt+セルクリック＝列 --- */
+async function copyTextToClipboard(text){
+  try{ await navigator.clipboard.writeText(text); return true; }
   catch(err){
     const ta = el('textarea'); ta.value = text; ta.style.cssText='position:fixed;left:-9999px';
     document.body.appendChild(ta); ta.select();
+    let ok = false;
     try{ ok = document.execCommand('copy'); }catch(e2){ ok = false; }
     document.body.removeChild(ta);
+    return ok;
   }
+}
+async function copyColumn(tab, ci){
+  if(!(ci>=0)) return;
+  const c = prepText(tab);
+  const ok = await copyTextToClipboard(c.rows.map(r=>r[ci]??'').join('\n'));
   toast(ok ? `第${ci+1}列（${c.rows.length.toLocaleString()} 行）をコピーしました` : 'コピーに失敗しました');
+}
+async function copyRow(tab, li){
+  const c = prepText(tab);
+  const line = c.lines[li];
+  if(line==null) return;
+  const ok = await copyTextToClipboard(line);
+  toast(ok ? `${(li+1).toLocaleString()} 行目をコピーしました（区切り文字を含む元テキスト・${line.length.toLocaleString()} 文字）` : 'コピーに失敗しました');
 }
 
 /* --- 列プロファイル(4.7)：列ごとの統計 --- */
@@ -471,8 +481,8 @@ function appendRuns(parent, text, arr, s, e){
     const seg = text.slice(i,j);
     if(!st) appendVis(parent, seg);
     else{
-      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':''));
-      if(st!==SEARCH && st!==SEARCH_CUR) sp.style.background = st.color;
+      const sp = el('span', st===SEARCH?'hit':(st===SEARCH_CUR?'hit cur':(st===DIFFCH?'dfch':'')));
+      if(st!==SEARCH && st!==SEARCH_CUR && st!==DIFFCH) sp.style.background = st.color;
       appendVis(sp, seg);
       parent.appendChild(sp);
     }
@@ -517,8 +527,8 @@ function buildTextView(tab, keepScroll){
   const c = prepText(tab);
   recountTextMarkers(tab);
   if(tab.valOn) ensureValidation(tab);
-  /* 行フィルタ(6章)：検索ヒット行のみ表示。表示行リストを毎ビルドで再計算 */
-  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : null;
+  /* 行フィルタ(6章)：検索ヒット行のみ／差分行のみ(4.9)。表示行リストを毎ビルドで再計算 */
+  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : diffRowsForFilter(tab);
   const def = resolvedDef(tab);
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
@@ -571,8 +581,14 @@ function buildTextView(tab, keepScroll){
       }
     });
   }
-  /* Alt+クリックで列コピー（編集モード以外でも有効） */
+  /* 行番号クリックで行コピー / Alt+セルクリックで列コピー(4.5) */
   rowsDiv.addEventListener('click', e=>{
+    const ln = e.target.closest('.ln');
+    if(ln){
+      const row = e.target.closest('.trow');
+      if(row) copyRow(tab, +row.dataset.l);
+      return;
+    }
     if(!e.altKey) return;
     const cell = e.target.closest('.xcell,.cell'); if(!cell) return;
     e.preventDefault();
@@ -609,6 +625,7 @@ function cellOuterW(tab,c,i){
 function makeLn(tab, text){
   const s = el('span','ln', text);
   s.style.width = (tab._lnW+2)+'ch';
+  if(text) s.title = 'クリックで行をコピー（区切り文字を含む元テキスト）';
   return s;
 }
 function appendTextRows(tab, n){
@@ -629,9 +646,13 @@ function buildTextRow(tab, li){
   /* 行マーカー(4.4) */
   const lineMk = tab.markers.find(m=>m.enabled&&m.type==='line'&&parseNumSpec(m.value).test(li+1));
   if(lineMk) row.style.background = lineMk.color;
+  /* 比較(4.9)：差分セル・相手なし行のハイライト */
+  const dm = ensureDiff();
+  if(dm && (tab.pane===0 ? dm.miss0 : dm.miss1).has(li)) row.classList.add('dfmiss');
   const colMks = tab.markers.filter(m=>m.enabled&&m.type==='col');
   row.appendChild(makeLn(tab, String(li+1)));
-  const arr = styleArrForLine(tab, li, line.length);
+  let arr = styleArrForLine(tab, li, line.length);
+  const otherRows = dm ? paneTab(1-tab.pane)?._cache.rows : null;
   const ds = c.rowDelims[li];
   let off=0;
   for(let i=0;i<cells.length;i++){
@@ -639,11 +660,24 @@ function buildTextRow(tab, li){
     const dl = i<cells.length-1 ? ds[i] : null;
     const colMk = colMks.find(m=>parseNumSpec(m.value).test(i+1));
     const ngReason = (tab.valOn && c.valNG) ? c.valNG.get(li+':'+i) : null;
+    const isDiff = dm && dm.cells.has(li+':'+i);
+    /* 差分セル内の「実際に違う文字」だけを濃色ハイライト(4.9) */
+    if(isDiff && otherRows){
+      const ov = otherRows[li]?.[i];
+      if(typeof ov==='string'){
+        const [ds,de] = charDiffRange(v, ov);
+        if(de>ds){
+          if(!arr) arr = new Array(line.length).fill(null);
+          for(let j=vs+ds; j<vs+de && j<line.length; j++) if(!arr[j]) arr[j]=DIFFCH;
+        }
+      }
+    }
     if(tab.style==='excel'){
       const cell = el('span','xcell');
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
       if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
+      if(isDiff) cell.classList.add('dfcell');
       cell.style.width = `calc(${cellOuterW(tab,c,i)||1}ch + 9px)`;
       if(colMk) cell.style.background = colMk.color;
       appendRuns(cell, line, arr, vs, ve);
@@ -653,6 +687,7 @@ function buildTextRow(tab, li){
       cell.dataset.c = i;
       if(tab.edit && tab.edit.edits.has(li+':'+i)) cell.classList.add('edcell');
       if(ngReason){ cell.classList.add('ngcell'); cell.title = '検査NG: '+ngReason; }
+      if(isDiff) cell.classList.add('dfcell');
       if(colMk) cell.style.background = colMk.color;
       const vsp = el('span','v');
       vsp.style.minWidth = (c.colW[i]||1)+'ch';

@@ -30,10 +30,11 @@ label.chk{display:inline-flex;align-items:center;gap:3px;cursor:pointer;user-sel
 .tab .x{border:none;background:none;padding:0 4px;border-radius:3px;color:var(--sub)}
 .tab .x:hover{background:#d0d5dd;color:#000}
 #btnOpen{margin-left:6px;flex:none}
-#toolbar,#toolbar2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
+#toolbar,#toolbar2,#toolbar3{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:6px 10px;background:var(--panel);
   border-top:1px solid var(--border);flex:none}
 #toolbar2{border-top:1px dashed var(--border);padding-top:5px;padding-bottom:5px;background:#fafbfd}
-#toolbar2+#main{border-top:1px solid var(--border)}
+#toolbar3+#main{border-top:1px solid var(--border)}
+#toolbar3{background:#f2f6fb}
 #toolbar .grp,#toolbar2 .grp{display:inline-flex;align-items:center;gap:5px}
 #toolbar .lbl,#toolbar2 .lbl{color:var(--sub);font-size:12px}
 #delimChips{display:inline-flex;gap:3px;flex-wrap:wrap}
@@ -109,6 +110,8 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 .ln{display:inline-block;position:sticky;left:0;z-index:2;background:var(--bg);color:#9aa1ad;text-align:right;
   padding:0 8px 0 4px;margin-right:6px;user-select:none;border-right:1px solid var(--border)}
 .hdrblock .ln{background:#f0ead6;border-right:1px solid #d9d2b8}
+.trow .ln{cursor:pointer}
+.trow .ln:hover{color:var(--accent);background:#e7f0ff}
 .cell{display:inline-block;vertical-align:top}
 .cell .v{display:inline-block;vertical-align:top}
 .cell .dl{display:inline-block;vertical-align:top;color:#b03060;margin-right:var(--dgap)}
@@ -183,6 +186,12 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 #btnFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .fixedTag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:1px 8px;color:var(--sub);font-size:12px;background:var(--bg)}
 
+/* ---- 比較（差分）(4.9) ---- */
+.dfcell{outline:1px solid #1c7ed6;outline-offset:-1px;background:#e7f5ff}
+.dfch{background:#74c0fc;border-radius:2px}
+.trow.dfmiss{background:#d0ebff}
+#btnDiff.on,#btnDiffOnly.on{background:#1c7ed6;border-color:#1c7ed6;color:#fff}
+
 /* ---- 編集モード(9章) ---- */
 .edcell{outline:1px solid #f59f00;outline-offset:-1px;background:#fff4e6}
 #cellEd{display:none;position:fixed;z-index:55;border:2px solid var(--accent);border-radius:3px;padding:0 3px;
@@ -226,6 +235,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
     <span class="lbl">分割</span>
     <span class="seg"><button id="laySingle" title="分割なし">▭</button><button id="layCols" title="左右2ペイン">◫</button><button id="layRows" title="上下2ペイン">⬒</button></span>
     <button id="btnSync" class="hiddenCtl" title="2つのペインのスクロールを同期（縦・横）">🔗 同期</button>
+    <button id="btnDiff" class="hiddenCtl" title="2つのペインを行番号ベースでセル単位比較（テキストモードのみ）">⇄ 比較</button>
     <button id="btnSide">🖍 マーカー</button>
     <button id="btnSettings">⚙ 設定</button>
     <button id="btnHelp" title="使い方">❓ ヘルプ</button>
@@ -266,10 +276,29 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
   <div class="grp">
     <button id="btnProf" title="列ごとの統計（空欄・ユニーク・文字数・型推定）を表示">📊 列情報</button>
     <button id="btnVal" title="ヘッダー定義の rules によるデータ検査（NGセルを赤枠表示）">✔ 検査</button>
-    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
   </div>
   <div class="grp">
     <button id="btnEditMode" title="セル単位の編集モード（元ファイルは変更されません）">✏ 編集</button>
+  </div>
+</div>
+
+<!-- コンテキストバー(6章)：比較・検査・編集の出現式コントロール。
+     1〜2段目に押し込むと折り返しで行がガタつくため、専用の3段目に分離 -->
+<div id="toolbar3" style="display:none">
+  <div class="grp" id="grpDiff3" style="display:none">
+    <span class="lbl">⇄ 比較</span>
+    <button id="btnDiffOnly" class="hiddenCtl" title="差分を含む行のみ表示">差分のみ</button>
+    <button id="btnDiffJump" class="hiddenCtl" title="次の差分行へ（両ペインを同じ行に揃えます）">差分行へ▼</button>
+    <button id="btnDiffExp" class="hiddenCtl" title="差分一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ 差分出力</button>
+    <span id="diffInfo" class="lbl"></span>
+  </div>
+  <div class="grp" id="grpVal3" style="display:none">
+    <span class="lbl">✔ 検査</span>
+    <button id="btnValJump" class="hiddenCtl" title="次のNG行へジャンプ"></button>
+    <button id="btnValExp" class="hiddenCtl" title="検査NG一覧をTSVでクリップボードへコピー（Ctrl+クリックでCSV保存）">⎘ NG出力</button>
+  </div>
+  <div class="grp" id="grpEdit3" style="display:none">
+    <span class="lbl">✏ 編集</span>
     <span id="editCtls" class="hiddenCtl">
       <span class="lbl">保存名</span><input type="text" id="saveNameIn" spellcheck="false" title="保存するファイル名（保存先に同名があれば連番を付けます）">
       <button id="btnSaveDir"></button>
@@ -385,7 +414,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
       <h3>列情報（📊）と検査（✔）</h3>
       <ul>
         <li><b>📊 列情報</b>：列ごとの「値あり／空欄／ユニーク数／文字数の範囲／型推定（数値・日付）」を一覧表示。想定外の空欄や桁ズレを目視より速く発見できます。</li>
-        <li><b>✔ 検査</b>：定義に <code>rules</code> を書いたファイルで表示されます。<code>{"col":2, "type":"date", "required":true}</code> のように列番号（1始まり）ごとに <code>type</code>（number/date）・<code>required</code>・<code>pattern</code>（正規表現）を指定でき、NGセルを<b>赤枠＋理由ツールチップ</b>で表示。「NG行へ▼」で順にジャンプします。</li>
+        <li><b>✔ 検査</b>：定義に <code>rules</code> を書いたファイルで表示されます。NG検出時は「⎘ NG出力」で一覧（行・列・値・理由）をTSVでクリップボードへコピーでき、Excelにそのまま貼り付けられます（Ctrl+クリックで保存先フォルダへCSV保存）。<code>{"col":2, "type":"date", "required":true}</code> のように列番号（1始まり）ごとに <code>type</code>（number/date）・<code>required</code>・<code>pattern</code>（正規表現）を指定でき、NGセルを<b>赤枠＋理由ツールチップ</b>で表示。「NG行へ▼」で順にジャンプします。</li>
       </ul>
 
       <h3>マーカー（🖍）</h3>
@@ -409,6 +438,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>ファイルは<b>アクティブなペイン</b>（アクセント色の枠）に開きます。ペインをクリックするとアクティブが切り替わり、ツールバー・検索・ステータスバーはアクティブペインのタブに作用します。D&amp;Dは<b>ドロップした側のペイン</b>に開きます。</li>
         <li>分割中はタブに所属ペインのバッジ（◧/◨）が付き、<b>タブを右クリックで反対側のペインへ移動</b>できます（編集モード中のタブも移動可）。</li>
         <li><b>🔗 同期</b>：ONにすると2つのペインのスクロール（縦・横）が連動します。同レイアウトのIF新旧比較に便利です。</li>
+        <li><b>⇄ 比較</b>：分割中にONにすると、2つのペインを<b>行番号ベースでセル単位比較</b>し、差分セルを青枠で表示します（相手にない行は行ごと青背景）。差分セル内では<b>実際に違う文字だけが濃い青</b>で強調されます（共通の前置き・後置きを除いた範囲）。比較・検査・編集の操作ボタンは、ONにしたときだけ現れる<b>3段目のバー</b>にまとまって表示されます。「差分のみ」で差分行だけに絞り込み、「差分行へ▼」で両ペインを同じ行に揃えてジャンプ。「⎘ 差分出力」で一覧をTSVコピー（Ctrl+クリックでCSV保存）。<b>編集モードと併用すると、右のセルを直すたびに差分が減っていく</b>ため修正作業に便利です。※並び順が違うファイル同士は行がずれて多数の差分になります（行番号ベースのため）。</li>
         <li>ペイン境界は<b>ドラッグで比率変更</b>（ダブルクリックで50%に戻る）。分割を解除すると全タブが左（上）ペインに集約されます。</li>
         <li>分割状態は保存されません（次回起動時は単一ペイン）。</li>
       </ul>
@@ -436,6 +466,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
       <ul>
         <li><kbd>Ctrl+G</kbd>：テキストモードは<b>行番号</b>、バイナリモードは<b>オフセット</b>（10進または <code>0x</code> 付き16進）へジャンプします。</li>
         <li><b>列コピー</b>：ヘッダーセルの<b>クリック</b>、またはデータセルの <kbd>Alt</kbd>+クリックで、その列の全行の値をクリップボードへコピーします（1行1値）。</li>
+        <li><b>行コピー</b>：<b>行番号のクリック</b>で、その行を<b>区切り文字を含む元テキスト</b>のままコピーします（マウスドラッグでの範囲選択より確実です）。</li>
       </ul>
 
       <h3>正規表現サンプル</h3>

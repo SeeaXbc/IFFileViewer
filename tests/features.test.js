@@ -271,6 +271,20 @@ test('定義の自動生成: ヘッダー行ありのTSVは1行目を列名と�
   assert.equal(r.modalOpen, true);
 });
 
+test('行コピー: 行番号クリックで区切り文字を含む元テキストがコピーされる', async () => {
+  await openBytes(page, 'ROWCOPY_TEST', readSample('IF_ORDER_20260705'));
+  await page.waitForSelector('.trow');
+  await page.locator('.trow[data-l="1"] .ln').click();
+  await page.waitForTimeout(200);
+  const r = await page.evaluate(async () => ({
+    clip: await navigator.clipboard.readText(),
+    line: curTab()._cache.lines[1],
+  }));
+  assert.equal(r.clip, r.line, '2行目の元テキスト（区切り込み）がそのまま入る');
+  assert.match(r.clip, /,/, '区切り文字が含まれる');
+  await page.evaluate(() => closeTab(tabs.length - 1));
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });
