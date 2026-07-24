@@ -1815,9 +1815,13 @@ function syncCfAll(){
 function cfApply(){
   if(!_cfCtx) return;
   const {tab, ci, order, checked} = _cfCtx;
-  if(checked.size===0){ toast('少なくとも1つの値を選択してください'); return; }
-  const all = order.every(v=>checked.has(v));
-  applyColFilter(tab, ci, all ? null : new Set(checked));
+  /* 検索で絞り込み中のOKは表示中の値だけを対象にする（Excel同様）。
+   * こうしないと非表示の値がチェック済みのまま残り「全選択＝解除」と誤判定される */
+  const q = $('#cfSearch').value.trim();
+  const target = q ? new Set(cfVisibleValues().filter(v=>checked.has(v))) : checked;
+  if(target.size===0){ toast('少なくとも1つの値を選択してください'); return; }
+  const all = !q && order.every(v=>checked.has(v));
+  applyColFilter(tab, ci, all ? null : new Set(target));
   closeColFilterPop();
 }
 function closeColFilterPop(){

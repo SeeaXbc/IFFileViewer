@@ -59,6 +59,36 @@ test('ポップアップ: ユニーク値と件数が表示され、チェック
   assert.equal(r.status, true);
 });
 
+test('全選択のまま検索→OKで表示中の値に絞り込まれる（Excel同様）', async () => {
+  /* 前テストの絞り込み（東京）を一旦解除して初期状態から始める */
+  await page.evaluate(() => { clearColFilters(curTab()); });
+  await page.locator('.cfbtn').nth(3).click();
+  await page.waitForSelector('#cfPop', { state: 'visible' });
+  await page.fill('#cfSearch', '大阪');           // (すべて選択)は解除しない
+  await page.click('#cfOk');
+  const r = await page.evaluate(() => ({
+    rows: [...paneContent(0).querySelectorAll('.trow')].map(e => +e.dataset.l),
+    active: colFilterActive(curTab()),
+  }));
+  assert.equal(r.active, true, '検索絞り込みのOKでフィルタが有効になる');
+  assert.deepEqual(r.rows, [1, 4], '大阪の行のみ');
+
+  /* 検索を空にしてOK（全チェックのまま）なら従来どおり解除される */
+  await page.locator('.cfbtn').nth(3).click();
+  await page.waitForSelector('#cfPop', { state: 'visible' });
+  await page.click('#cfAll');   // 大阪のみ→全値チェックに戻す
+  await page.click('#cfOk');
+  const r2 = await page.evaluate(() => ({
+    rows: paneContent(0).querySelectorAll('.trow').length,
+    active: colFilterActive(curTab()),
+  }));
+  assert.equal(r2.active, false, '全選択＋検索なしのOKは解除');
+  assert.equal(r2.rows, 6);
+
+  /* 後続テストが期待する「東京」フィルタ状態に戻す */
+  await page.evaluate(() => { applyColFilter(curTab(), 3, new Set(['東京'])); });
+});
+
 test('複数列AND: 金額1000∩東京', async () => {
   const r = await page.evaluate(() => {
     applyColFilter(curTab(), 2, new Set(['1000']));
