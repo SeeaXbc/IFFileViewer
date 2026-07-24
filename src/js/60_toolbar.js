@@ -44,6 +44,7 @@ function initToolbar(){
     const t=curTab();
     if(t && t.mode==='text') renderAllPanes(true); // 列幅・ヘッダー幅の再計算（両ペイン）
   };
+  $('#btnColFilter').onclick = toggleColFilterRow;
   $('#btnWs').onclick = ()=>{
     settings.showWs = !settings.showWs; LS.set('ifv_settings', settings);
     const t=curTab();
@@ -238,7 +239,7 @@ function updateToolbar(){
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
   $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
   updateToolbar3();
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
@@ -266,6 +267,7 @@ function updateToolbar(){
   $('#chkCase').checked = t.queryCase;
   $('#btnRegex').classList.toggle('on', !!t.queryRegex);
   $('#btnFilter').classList.toggle('on', !!t.filterHits);
+  $('#btnColFilter').classList.toggle('on', !!t.colFilterOn);
   updateValCtls(t);
   /* ヘッダー定義セレクト */
   const sd = $('#selDef'); sd.textContent='';
@@ -381,6 +383,7 @@ function updateStatus(){
       const nl=c.nl, kinds=[]; if(nl.crlf)kinds.push('CRLF×'+nl.crlf); if(nl.lf)kinds.push('LF×'+nl.lf); if(nl.cr)kinds.push('CR×'+nl.cr);
       items.push(`${c.lines.length.toLocaleString()} 行 / ${c.colW?c.colW.length:0} 列`);
       if(t.filterHits) items.push(`⊜ <b>ヒット行のみ表示</b>（${totalTextRows(t).toLocaleString()} 行）`);
+      if(colFilterActive(t)) items.push(`▼ <b>列フィルタ: ${t.colFilters.size}列</b>（表示 ${totalTextRows(t).toLocaleString()} 行）`);
       if(t.valOn && c.valNG) items.push(c.valNG.size ? `✔ 検査NG: <b>${c.valNG.size.toLocaleString()} セル</b>` : '✔ 検査OK');
       if(fixedWidths(t)) items.push('固定長');
       const nlHead = (t.nlSel&&t.nlSel!=='auto') ? `<b>${t.nlSel.toUpperCase()} 指定</b> / 検出: ` : '';

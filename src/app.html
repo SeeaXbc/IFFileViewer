@@ -186,6 +186,27 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 #btnFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .fixedTag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:1px 8px;color:var(--sub);font-size:12px;background:var(--bg)}
 
+/* ---- 列フィルタ(4.10) ---- */
+.cfrow{display:flex;background:#eef3f9;border-bottom:1px solid var(--border);width:max-content;min-width:100%}
+.cfrow .ln{background:#e4e8ee;display:flex;align-items:center;justify-content:flex-end}
+.cfbtn{flex:none;box-sizing:border-box;border:none;border-right:1px solid #dbe2ea;background:transparent;color:#5f6b7a;
+  cursor:pointer;font-size:10px;padding:1px 3px;text-align:right;overflow:hidden;white-space:nowrap}
+.cfbtn:hover{background:#dceafe}
+.cfbtn.on{color:#fff;background:var(--accent)}
+.cfclear{border:none;background:#e03131;color:#fff;border-radius:3px;font-size:10px;cursor:pointer;padding:0 4px;margin-right:3px}
+#cfPop{display:none;position:fixed;z-index:56;background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.25);padding:8px;width:280px;font-size:12px;font-family:"Segoe UI","Meiryo",sans-serif}
+#cfSearch{width:100%;box-sizing:border-box;margin-bottom:6px}
+.cfall{display:block;padding:2px 4px;border-bottom:1px solid var(--border);margin-bottom:2px;user-select:none}
+#cfList{max-height:260px;overflow:auto}
+.cfitem{display:flex;align-items:center;gap:6px;padding:1px 4px;cursor:pointer;user-select:none}
+.cfitem:hover{background:var(--bg)}
+.cfitem .v{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:pre;font-family:var(--mono)}
+.cfitem .n{color:var(--sub);font-size:11px}
+#cfNote{color:var(--sub);font-size:11px;margin:4px 2px}
+.cfft{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+#btnColFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
 /* ---- 比較（差分）(4.9) ---- */
 .dfcell{outline:1px solid #1c7ed6;outline-offset:-1px;background:#e7f5ff}
 .dfch{background:#74c0fc;border-radius:2px}
@@ -267,6 +288,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
   </div>
   <div class="grp">
     <button id="btnWs" title="スペース・タブ・全角スペース・CR を可視化（表示のみ。コピーには影響しません）">␣ 可視化</button>
+    <button id="btnColFilter" title="列フィルタ（Excelのオートフィルタ相当）。各列の▼から値で絞り込み">▼ 列フィルター</button>
   </div>
   <div class="grp">
     <span class="lbl">ヘッダー定義</span>
@@ -430,6 +452,14 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>左からオフセット／HEX（16バイト/行）／指定文字コードでのデコード結果。全角などのマルチバイト文字は<b>先頭バイトの位置</b>に表示され、後続バイトは <code>·</code>（継続）になります。</li>
         <li>HEX側・デコード側の<b>クリックで対応箇所を相互ハイライト</b>。マルチバイト文字は全バイトが選択され、ステータスバーに詳細表示。再クリックか<kbd>Esc</kbd>で解除。</li>
         <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
+      </ul>
+
+      <h3>列フィルタ（▼・Excelのオートフィルタ相当）</h3>
+      <ul>
+        <li>ツールバーの「<b>▼ 列フィルター</b>」をONにすると、各列の上に▼ボタンの行が表示されます。▼をクリックすると<b>その列のユニーク値一覧（件数付き）</b>が開き、チェックで表示行を絞り込めます（複数列は<b>AND条件</b>）。</li>
+        <li>ポップアップ内の検索ボックスで値一覧を絞り込み、「(すべて選択)」でまとめてON/OFF。「この列を解除」で列単位、行番号側の <code>✕</code> で全列一括解除。</li>
+        <li>絞り込み中も<b>行番号は元ファイルのまま</b>表示されます。検索の「⊜ ヒット行」や比較の「差分のみ」とも<b>重ね掛け（AND）</b>できます。</li>
+        <li>区切り文字や定義の変更で列構成が変わった場合は、誤った絞り込みを防ぐためフィルタを自動解除します。</li>
       </ul>
 
       <h3>マルチカラム表示（2ペイン分割）</h3>

@@ -186,6 +186,27 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 #btnFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .fixedTag{display:inline-block;border:1px solid var(--border);border-radius:3px;padding:1px 8px;color:var(--sub);font-size:12px;background:var(--bg)}
 
+/* ---- 列フィルタ(4.10) ---- */
+.cfrow{display:flex;background:#eef3f9;border-bottom:1px solid var(--border);width:max-content;min-width:100%}
+.cfrow .ln{background:#e4e8ee;display:flex;align-items:center;justify-content:flex-end}
+.cfbtn{flex:none;box-sizing:border-box;border:none;border-right:1px solid #dbe2ea;background:transparent;color:#5f6b7a;
+  cursor:pointer;font-size:10px;padding:1px 3px;text-align:right;overflow:hidden;white-space:nowrap}
+.cfbtn:hover{background:#dceafe}
+.cfbtn.on{color:#fff;background:var(--accent)}
+.cfclear{border:none;background:#e03131;color:#fff;border-radius:3px;font-size:10px;cursor:pointer;padding:0 4px;margin-right:3px}
+#cfPop{display:none;position:fixed;z-index:56;background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.25);padding:8px;width:280px;font-size:12px;font-family:"Segoe UI","Meiryo",sans-serif}
+#cfSearch{width:100%;box-sizing:border-box;margin-bottom:6px}
+.cfall{display:block;padding:2px 4px;border-bottom:1px solid var(--border);margin-bottom:2px;user-select:none}
+#cfList{max-height:260px;overflow:auto}
+.cfitem{display:flex;align-items:center;gap:6px;padding:1px 4px;cursor:pointer;user-select:none}
+.cfitem:hover{background:var(--bg)}
+.cfitem .v{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:pre;font-family:var(--mono)}
+.cfitem .n{color:var(--sub);font-size:11px}
+#cfNote{color:var(--sub);font-size:11px;margin:4px 2px}
+.cfft{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+#btnColFilter.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
 /* ---- 比較（差分）(4.9) ---- */
 .dfcell{outline:1px solid #1c7ed6;outline-offset:-1px;background:#e7f5ff}
 .dfch{background:#74c0fc;border-radius:2px}
@@ -267,6 +288,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
   </div>
   <div class="grp">
     <button id="btnWs" title="スペース・タブ・全角スペース・CR を可視化（表示のみ。コピーには影響しません）">␣ 可視化</button>
+    <button id="btnColFilter" title="列フィルタ（Excelのオートフィルタ相当）。各列の▼から値で絞り込み">▼ 列フィルター</button>
   </div>
   <div class="grp">
     <span class="lbl">ヘッダー定義</span>
@@ -432,6 +454,14 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>大きいファイルは先頭256KBのみ表示し、末尾の「さらに表示」で追加読み込み。マークや検索の件数は<b>ファイル全体</b>を対象に数えます。</li>
       </ul>
 
+      <h3>列フィルタ（▼・Excelのオートフィルタ相当）</h3>
+      <ul>
+        <li>ツールバーの「<b>▼ 列フィルター</b>」をONにすると、各列の上に▼ボタンの行が表示されます。▼をクリックすると<b>その列のユニーク値一覧（件数付き）</b>が開き、チェックで表示行を絞り込めます（複数列は<b>AND条件</b>）。</li>
+        <li>ポップアップ内の検索ボックスで値一覧を絞り込み、「(すべて選択)」でまとめてON/OFF。「この列を解除」で列単位、行番号側の <code>✕</code> で全列一括解除。</li>
+        <li>絞り込み中も<b>行番号は元ファイルのまま</b>表示されます。検索の「⊜ ヒット行」や比較の「差分のみ」とも<b>重ね掛け（AND）</b>できます。</li>
+        <li>区切り文字や定義の変更で列構成が変わった場合は、誤った絞り込みを防ぐためフィルタを自動解除します。</li>
+      </ul>
+
       <h3>マルチカラム表示（2ペイン分割）</h3>
       <p>ツールバー右上の「分割」で <span class="tag">▭ 単一</span> / <span class="tag">◫ 左右</span> / <span class="tag">⬒ 上下</span> を切り替えます。正常ファイルと異常ファイルの見比べなどに使えます。</p>
       <ul>
@@ -562,7 +592,7 @@ const LS = {
 };
 
 /* ---------- 状態 ---------- */
-const APP_VERSION = '1.9.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
+const APP_VERSION = '1.10.0';     // ヘルプに表示。更新履歴は要件定義書末尾を参照
 const CHUNK_TEXT = 500;          // テキスト行の追加描画単位
 const CHUNK_BIN  = 512;          // バイナリ行(16B)の追加描画単位
 const BIN_STEP   = 256*1024;     // バイナリ初期表示・追加読み込み単位(5.5)
@@ -1372,6 +1402,7 @@ document.querySelectorAll('#panes .pane > .content').forEach(c=>{
   c.addEventListener('scroll', ()=>{
     hideHdrTip();
     if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
+    if(_cfCtx) closeColFilterPop();    // 列フィルタポップアップも閉じる(4.10)
     syncPaneScroll(c);                 // 同期スクロール(4.8)
   }, {passive:true});
 });
@@ -1383,8 +1414,8 @@ function buildTextView(tab, keepScroll){
   const c = prepText(tab);
   recountTextMarkers(tab);
   if(tab.valOn) ensureValidation(tab);
-  /* 行フィルタ(6章)：検索ヒット行のみ／差分行のみ(4.9)。表示行リストを毎ビルドで再計算 */
-  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : diffRowsForFilter(tab);
+  /* 行フィルタ(4.5/4.9/4.10)：列フィルタ∩検索ヒット∩差分行。毎ビルドで再計算 */
+  tab._flist = filterLinesFor(tab);
   const def = resolvedDef(tab);
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
@@ -1421,6 +1452,13 @@ function buildTextView(tab, keepScroll){
       if(i>=0) copyColumn(tab, i);
     });
     content.appendChild(hb);
+  }
+  /* 列フィルタ行(4.10)：ヘッダーと同じsticky領域に置く（定義なしでも専用ブロックで固定） */
+  if(tab.colFilterOn){
+    const cfr = buildColFilterRow(tab, c);
+    const hbEl = content.querySelector('.hdrblock');
+    if(hbEl) hbEl.appendChild(cfr);
+    else { const wrap = el('div','hdrblock'); wrap.appendChild(cfr); content.appendChild(wrap); }
   }
   const rowsDiv = el('div'); rowsDiv.className='rows';
   /* 編集モード(9章)：ダブルクリックでセル編集、編集済みセルは右クリックで元に戻す */
@@ -1585,6 +1623,207 @@ function ensureTextRows(tab, upto){
     appendTextRows(tab, Math.max(CHUNK_TEXT, need-tab.renderedText));
 }
 
+/* =====================================================================
+ * 列フィルタ(4.10)：Excelのオートフィルタ相当。列ごとの値チェックリストで
+ * 行を絞り込む（複数列はAND）。検索ヒット行・差分行フィルタとは積集合。
+ * =================================================================== */
+const CF_LIST_CAP = 5000;   // ポップアップに表示するユニーク値の上限
+
+/* タブ状態: tab.colFilterOn(フィルタ行の表示) / tab.colFilters(Map ci→Set(許可値)) */
+function colFilterActive(tab){
+  return !!(tab.colFilters && tab.colFilters.size);
+}
+function toggleColFilterRow(){
+  const t = curTab(); if(!t || t.mode!=='text') return;
+  t.colFilterOn = !t.colFilterOn;
+  if(!t.colFilterOn && colFilterActive(t)){
+    t.colFilters.clear();               // フィルタ行を隠すときは絞り込みも解除
+    toast('列フィルタを解除しました');
+  }
+  closeColFilterPop();
+  renderAll(true);
+}
+function clearColFilters(tab){
+  if(!colFilterActive(tab)) return;
+  tab.colFilters.clear();
+  closeColFilterPop();
+  renderAll(true);
+  toast('列フィルタをすべて解除しました');
+}
+/* 値集合を適用（null/全値選択なら解除）。UIとテストの共通入口 */
+function applyColFilter(tab, ci, valueSet){
+  if(!tab.colFilters) tab.colFilters = new Map();
+  if(!valueSet) tab.colFilters.delete(ci);
+  else tab.colFilters.set(ci, valueSet);
+  tab._cfKey = tab._cache.cellsKey;     // 列構成の変更検知用(4.10)
+  renderAll(true);
+}
+/* フィルタ通過行の列挙（複数列AND）。行番号は元ファイルのまま */
+function colFilterRows(tab){
+  const c = tab._cache, out = [];
+  const fs = [...tab.colFilters.entries()];
+  for(let li=0; li<c.rows.length; li++){
+    const r = c.rows[li];
+    let ok = true;
+    for(const [ci,set] of fs){ if(!set.has(r[ci] ?? '')){ ok = false; break; } }
+    if(ok) out.push(li);
+  }
+  return out;
+}
+/* 表示行リストの合成(4.5/4.9/4.10)：列フィルタ ∩ 検索ヒット行 ∩ 差分行 */
+function filterLinesFor(tab){
+  /* 列構成が変わっていたら列フィルタを自己解除（列番号の意味が変わるため） */
+  if(colFilterActive(tab) && tab._cfKey !== tab._cache.cellsKey){
+    tab.colFilters.clear();
+    toast('列構成が変わったため列フィルタを解除しました');
+  }
+  let list = null;
+  if(colFilterActive(tab)) list = colFilterRows(tab);
+  if(tab.filterHits){
+    const hits = [...tab.hitsByLine.keys()].sort((a,b)=>a-b);
+    list = list ? intersectSorted(list, hits) : hits;
+  }
+  const dr = diffRowsForFilter(tab);
+  if(dr) list = list ? intersectSorted(list, dr) : dr;
+  return list;
+}
+function intersectSorted(a, b){
+  const out = []; let i=0, j=0;
+  while(i<a.length && j<b.length){
+    if(a[i]===b[j]){ out.push(a[i]); i++; j++; }
+    else if(a[i]<b[j]) i++; else j++;
+  }
+  return out;
+}
+
+/* --- フィルタ行（▼ボタンの行）。ヘッダーブロック内に置いてsticky固定 --- */
+function buildColFilterRow(tab, c){
+  const r = el('div','cfrow');
+  const g = makeLn(tab,'');
+  if(colFilterActive(tab)){
+    const x = el('button','cfclear','✕');
+    x.title = '列フィルタをすべて解除';
+    x.onclick = ()=>clearColFilters(tab);
+    g.appendChild(x); g.title='';
+  }
+  r.appendChild(g);
+  for(let i=0; i<c.colW.length; i++){
+    const set = tab.colFilters?.get(i);
+    const b = el('button','cfbtn'+(set?' on':''), set ? `▼${set.size}` : '▼');
+    b.style.width = `calc(${cellOuterW(tab,c,i)||1}ch + ${tab.style==='excel'?9:0}px)`;
+    b.title = set ? `第${i+1}列: ${set.size} 値で絞り込み中（クリックで変更）` : `第${i+1}列のフィルタ`;
+    b.onclick = ev=>{ ev.stopPropagation(); openColFilterPop(tab, i, b); };
+    r.appendChild(b);
+  }
+  return r;
+}
+
+/* --- 値リストのポップアップ（Excelのオートフィルタ相当） --- */
+let _cfCtx = null;   // {tab, ci, counts, order, checked}
+function ensureCfPop(){
+  let pop = $('#cfPop');
+  if(pop) return pop;
+  pop = el('div'); pop.id = 'cfPop';
+  pop.innerHTML = `
+    <input type="text" id="cfSearch" placeholder="値を検索" spellcheck="false">
+    <label class="cfall"><input type="checkbox" id="cfAll" checked> (すべて選択)</label>
+    <div id="cfList"></div>
+    <div id="cfNote"></div>
+    <div class="cfft">
+      <button id="cfOk" class="on">OK</button>
+      <button id="cfClear">この列を解除</button>
+      <button id="cfCancel">キャンセル</button>
+    </div>`;
+  document.body.appendChild(pop);
+  pop.addEventListener('mousedown', e=>e.stopPropagation());
+  $('#cfSearch').oninput = renderCfList;
+  $('#cfSearch').onkeydown = e=>{
+    if(e.isComposing || e.keyCode===229) return;
+    if(e.key==='Enter'){ e.preventDefault(); cfApply(); }
+    if(e.key==='Escape'){ e.preventDefault(); closeColFilterPop(); }
+  };
+  $('#cfAll').onchange = ()=>{
+    const on = $('#cfAll').checked;
+    for(const v of cfVisibleValues()){ if(on) _cfCtx.checked.add(v); else _cfCtx.checked.delete(v); }
+    renderCfList();
+  };
+  $('#cfOk').onclick = cfApply;
+  $('#cfClear').onclick = ()=>{ if(_cfCtx) applyColFilter(_cfCtx.tab, _cfCtx.ci, null); closeColFilterPop(); };
+  $('#cfCancel').onclick = closeColFilterPop;
+  document.addEventListener('mousedown', e=>{
+    if(_cfCtx && !(e.target instanceof Element && e.target.closest('#cfPop,.cfbtn'))) closeColFilterPop();
+  });
+  return pop;
+}
+function collectColValues(tab, ci){
+  const counts = new Map();
+  for(const r of tab._cache.rows){
+    const v = r[ci] ?? '';
+    counts.set(v, (counts.get(v)||0)+1);
+  }
+  /* 並び順: 全て数値なら数値順、それ以外は文字列順（Excel同様の感覚） */
+  const keys = [...counts.keys()];
+  const NUM = /^[+-]?\d+(\.\d+)?$/;
+  const allNum = keys.every(k=>k==='' || NUM.test(k.trim()));
+  keys.sort(allNum
+    ? (a,b)=> a==='' ? 1 : b==='' ? -1 : (+a)-(+b)
+    : (a,b)=> a.localeCompare(b,'ja'));
+  return {counts, order:keys};
+}
+function openColFilterPop(tab, ci, btnEl){
+  const pop = ensureCfPop();
+  const {counts, order} = collectColValues(tab, ci);
+  const cur = tab.colFilters?.get(ci);
+  _cfCtx = {tab, ci, counts, order, checked: new Set(cur ?? order)};
+  $('#cfSearch').value = '';
+  renderCfList();
+  pop.style.display = 'block';
+  const r = btnEl.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  pop.style.left = Math.max(4, Math.min(r.left, window.innerWidth - pw - 8)) + 'px';
+  pop.style.top = (r.bottom + ph > window.innerHeight - 8 ? Math.max(4, r.top - ph - 2) : r.bottom + 2) + 'px';
+  $('#cfSearch').focus();
+}
+function cfVisibleValues(){
+  const q = $('#cfSearch').value.toLowerCase();
+  return _cfCtx.order.filter(v=>!q || v.toLowerCase().includes(q));
+}
+function renderCfList(){
+  if(!_cfCtx) return;
+  const list = $('#cfList'); list.textContent = '';
+  const vis = cfVisibleValues();
+  const shown = vis.slice(0, CF_LIST_CAP);
+  for(const v of shown){
+    const lb = el('label','cfitem');
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = _cfCtx.checked.has(v);
+    cb.onchange = ()=>{ cb.checked ? _cfCtx.checked.add(v) : _cfCtx.checked.delete(v); syncCfAll(); };
+    lb.appendChild(cb);
+    lb.appendChild(el('span','v', v==='' ? '(空白)' : v));
+    lb.appendChild(el('span','n', _cfCtx.counts.get(v).toLocaleString()));
+    list.appendChild(lb);
+  }
+  $('#cfNote').textContent =
+    (vis.length > CF_LIST_CAP ? `値が多いため先頭 ${CF_LIST_CAP.toLocaleString()} 件を表示（検索で絞り込めます）。` : '') +
+    `ユニーク ${_cfCtx.order.length.toLocaleString()} 値`;
+  syncCfAll();
+}
+function syncCfAll(){
+  const vis = cfVisibleValues();
+  $('#cfAll').checked = vis.length>0 && vis.every(v=>_cfCtx.checked.has(v));
+}
+function cfApply(){
+  if(!_cfCtx) return;
+  const {tab, ci, order, checked} = _cfCtx;
+  if(checked.size===0){ toast('少なくとも1つの値を選択してください'); return; }
+  const all = order.every(v=>checked.has(v));
+  applyColFilter(tab, ci, all ? null : new Set(checked));
+  closeColFilterPop();
+}
+function closeColFilterPop(){
+  _cfCtx = null;
+  const pop = $('#cfPop');
+  if(pop) pop.style.display = 'none';
+}
 /* =====================================================================
  * バイナリモード (5章)
  * =================================================================== */
@@ -1947,6 +2186,7 @@ function initBinSelect(){
       if($('#helpBack').classList.contains('show')){ $('#helpBack').classList.remove('show'); return; }
       if($('#modalBack').classList.contains('show')){ $('#modalBack').classList.remove('show'); return; }
       if($('#profBack').classList.contains('show')){ $('#profBack').classList.remove('show'); return; }
+      if(_cfCtx){ closeColFilterPop(); return; }
       const t=curTab(); if(t) clearBinSel(t);
     }
   });
@@ -2715,6 +2955,7 @@ function initToolbar(){
     const t=curTab();
     if(t && t.mode==='text') renderAllPanes(true); // 列幅・ヘッダー幅の再計算（両ペイン）
   };
+  $('#btnColFilter').onclick = toggleColFilterRow;
   $('#btnWs').onclick = ()=>{
     settings.showWs = !settings.showWs; LS.set('ifv_settings', settings);
     const t=curTab();
@@ -2909,7 +3150,7 @@ function updateToolbar(){
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
   $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
   updateToolbar3();
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
@@ -2937,6 +3178,7 @@ function updateToolbar(){
   $('#chkCase').checked = t.queryCase;
   $('#btnRegex').classList.toggle('on', !!t.queryRegex);
   $('#btnFilter').classList.toggle('on', !!t.filterHits);
+  $('#btnColFilter').classList.toggle('on', !!t.colFilterOn);
   updateValCtls(t);
   /* ヘッダー定義セレクト */
   const sd = $('#selDef'); sd.textContent='';
@@ -3052,6 +3294,7 @@ function updateStatus(){
       const nl=c.nl, kinds=[]; if(nl.crlf)kinds.push('CRLF×'+nl.crlf); if(nl.lf)kinds.push('LF×'+nl.lf); if(nl.cr)kinds.push('CR×'+nl.cr);
       items.push(`${c.lines.length.toLocaleString()} 行 / ${c.colW?c.colW.length:0} 列`);
       if(t.filterHits) items.push(`⊜ <b>ヒット行のみ表示</b>（${totalTextRows(t).toLocaleString()} 行）`);
+      if(colFilterActive(t)) items.push(`▼ <b>列フィルタ: ${t.colFilters.size}列</b>（表示 ${totalTextRows(t).toLocaleString()} 行）`);
       if(t.valOn && c.valNG) items.push(c.valNG.size ? `✔ 検査NG: <b>${c.valNG.size.toLocaleString()} セル</b>` : '✔ 検査OK');
       if(fixedWidths(t)) items.push('固定長');
       const nlHead = (t.nlSel&&t.nlSel!=='auto') ? `<b>${t.nlSel.toUpperCase()} 指定</b> / 検出: ` : '';

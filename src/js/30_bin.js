@@ -360,6 +360,7 @@ function initBinSelect(){
       if($('#helpBack').classList.contains('show')){ $('#helpBack').classList.remove('show'); return; }
       if($('#modalBack').classList.contains('show')){ $('#modalBack').classList.remove('show'); return; }
       if($('#profBack').classList.contains('show')){ $('#profBack').classList.remove('show'); return; }
+      if(_cfCtx){ closeColFilterPop(); return; }
       const t=curTab(); if(t) clearBinSel(t);
     }
   });
