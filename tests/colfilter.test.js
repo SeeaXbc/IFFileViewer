@@ -124,6 +124,35 @@ test('フィルタ行トグルOFFで絞り込みも解除される', async () =>
   assert.equal(r.cfrow, false);
 });
 
+test('▼ボタンの幅と位置がデータセルと一致する（グリッド/桁揃え両方式）', async () => {
+  const measure = () => page.evaluate(() => {
+    const t = curTab();
+    if(!t.colFilterOn) toggleColFilterRow();
+    const btns = [...paneContent(0).querySelectorAll('.cfbtn')];
+    const cells = [...paneContent(0).querySelector('.trow').querySelectorAll('[data-c]')];
+    return btns.map((b, i) => {
+      const br = b.getBoundingClientRect(), cr = cells[i].getBoundingClientRect();
+      return { dLeft: Math.abs(br.left - cr.left), dWidth: Math.abs(br.width - cr.width) };
+    });
+  });
+  for (const style of ['excel', 'em']) {
+    await page.evaluate(s => { const t = curTab(); t.style = s; renderAll(true); }, style);
+    const diffs = await measure();
+    for (const [i, d] of diffs.entries()) {
+      assert.ok(d.dLeft <= 1.5, `${style}: 第${i+1}列の位置ずれ ${d.dLeft.toFixed(1)}px`);
+      assert.ok(d.dWidth <= 1.5, `${style}: 第${i+1}列の幅ずれ ${d.dWidth.toFixed(1)}px`);
+    }
+  }
+  /* ズーム変更後も一致すること（chスケール追従の確認） */
+  await page.evaluate(() => { settings.zoom = 150; applyDisplaySettings(); renderAll(true); });
+  const diffs = await measure();
+  for (const d of diffs) assert.ok(d.dLeft <= 1.5 && d.dWidth <= 1.5, 'ズーム150%でもずれない');
+  await page.evaluate(() => {
+    settings.zoom = 100; applyDisplaySettings();
+    const t = curTab(); t.style = 'excel'; toggleColFilterRow(); renderAll(true);
+  });
+});
+
 test('ページエラーが発生していない', () => {
   assert.deepEqual(errors, []);
 });

@@ -190,7 +190,8 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 .cfrow{display:flex;background:#eef3f9;border-bottom:1px solid var(--border);width:max-content;min-width:100%}
 .cfrow .ln{background:#e4e8ee;display:flex;align-items:center;justify-content:flex-end}
 .cfbtn{flex:none;box-sizing:border-box;border:none;border-right:1px solid #dbe2ea;background:transparent;color:#5f6b7a;
-  cursor:pointer;font-size:10px;padding:1px 3px;text-align:right;overflow:hidden;white-space:nowrap}
+  cursor:pointer;font-family:var(--mono);font-size:inherit;line-height:1.25;padding:0 3px;text-align:right;overflow:hidden;white-space:nowrap}
+/* 幅指定の ch 単位を本文セルと同一スケールで解決させるため、フォントは本文から継承する */
 .cfbtn:hover{background:#dceafe}
 .cfbtn.on{color:#fff;background:var(--accent)}
 .cfclear{border:none;background:#e03131;color:#fff;border-radius:3px;font-size:10px;cursor:pointer;padding:0 4px;margin-right:3px}
