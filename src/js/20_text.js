@@ -516,6 +516,7 @@ document.querySelectorAll('#panes .pane > .content').forEach(c=>{
   c.addEventListener('scroll', ()=>{
     hideHdrTip();
     if(_cellEdCtx) closeCellEd(true);  // スクロールでセルエディタは確定して閉じる（固定位置のため）
+    if(_cfCtx) closeColFilterPop();    // 列フィルタポップアップも閉じる(4.10)
     syncPaneScroll(c);                 // 同期スクロール(4.8)
   }, {passive:true});
 });
@@ -527,8 +528,8 @@ function buildTextView(tab, keepScroll){
   const c = prepText(tab);
   recountTextMarkers(tab);
   if(tab.valOn) ensureValidation(tab);
-  /* 行フィルタ(6章)：検索ヒット行のみ／差分行のみ(4.9)。表示行リストを毎ビルドで再計算 */
-  tab._flist = tab.filterHits ? [...tab.hitsByLine.keys()].sort((a,b)=>a-b) : diffRowsForFilter(tab);
+  /* 行フィルタ(4.5/4.9/4.10)：列フィルタ∩検索ヒット∩差分行。毎ビルドで再計算 */
+  tab._flist = filterLinesFor(tab);
   const def = resolvedDef(tab);
   tab._lnW = Math.max(3, String(c.lines.length).length);
 
@@ -565,6 +566,13 @@ function buildTextView(tab, keepScroll){
       if(i>=0) copyColumn(tab, i);
     });
     content.appendChild(hb);
+  }
+  /* 列フィルタ行(4.10)：ヘッダーと同じsticky領域に置く（定義なしでも専用ブロックで固定） */
+  if(tab.colFilterOn){
+    const cfr = buildColFilterRow(tab, c);
+    const hbEl = content.querySelector('.hdrblock');
+    if(hbEl) hbEl.appendChild(cfr);
+    else { const wrap = el('div','hdrblock'); wrap.appendChild(cfr); content.appendChild(wrap); }
   }
   const rowsDiv = el('div'); rowsDiv.className='rows';
   /* 編集モード(9章)：ダブルクリックでセル編集、編集済みセルは右クリックで元に戻す */
