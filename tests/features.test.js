@@ -163,6 +163,7 @@ test('貼り付け: TSVテキストがタブ区切りの新規タブとして開
       document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
     };
     const before = tabs.length;
+    $('#selEnc').value = 'utf-8';   // 文字コード欄の指定で符号化される（自動判定は表示中タブに依存するため明示）
     dispatch();
     const opened = tabs.length === before + 1;
     const t = curTab();
@@ -192,6 +193,118 @@ test('貼り付け: TSVテキストがタブ区切りの新規タブとして開
   assert.equal(r.lines, 3);
   assert.deepEqual(r.row1, ['りんご', '3']);
   assert.equal(r.notOpenedOnInput, true, '入力欄への貼り付けではタブを開かない');
+});
+
+test('貼り付け: ツールバーで指定中の文字コードで符号化される（Shift-JIS/自動判定/表せない文字）', async () => {
+  const r = await page.evaluate(() => {
+    const paste = (s) => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', s);
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return curTab();
+    };
+    const hex = (b) => [...b].map(x => x.toString(16).padStart(2, '0')).join(' ');
+    const se = $('#selEnc');
+    const start = tabs.length;
+    /* Shift-JIS 指定中 */
+    se.value = 'shift_jis';
+    const t1 = paste('あA');
+    const sjis = { enc: t1.encSel, hex: hex(t1.bytes), row: prepText(t1).rows[0] };
+    /* 自動判定：表示中タブ（Shift-JIS）の判定結果に従う */
+    se.value = 'auto';
+    const t2 = paste('い');
+    const auto = { enc: t2.encSel, hex: hex(t2.bytes) };
+    /* Shift-JIS で表せない文字は ? に置換 */
+    se.value = 'shift_jis';
+    const t3 = paste('a😀b');
+    const bad = { hex: hex(t3.bytes), toast: $('#toast').textContent };
+    /* UTF-16LE 指定 */
+    se.value = 'utf-16le';
+    const t4 = paste('あ');
+    const u16 = { enc: t4.encSel, hex: hex(t4.bytes) };
+    while (tabs.length > start) closeTab(tabs.length - 1);
+    return { sjis, auto, bad, u16 };
+  });
+  assert.equal(r.sjis.enc, 'shift_jis');
+  assert.equal(r.sjis.hex, '82 a0 41');
+  assert.deepEqual(r.sjis.row, ['あA']);
+  assert.equal(r.auto.enc, 'shift_jis', '自動判定時は表示中タブの文字コード');
+  assert.equal(r.auto.hex, '82 a2');
+  assert.equal(r.bad.hex, '61 3f 62');
+  assert.match(r.bad.toast, /1 個を「\?」に置換/);
+  assert.equal(r.u16.enc, 'utf-16le');
+  assert.equal(r.u16.hex, '42 30');
+});
+
+test('全体コピー: 編集結果を反映し、改行コードは元のまま', async () => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const r = await page.evaluate(async () => {
+    $('#selEnc').value = 'shift_jis';
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'A,あ\r\nB,い\r\n');
+    document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    const t = curTab();
+    t.delims = [','];
+    t._cache = {};
+    renderAll(true);
+    await copyAllText(t);
+    const plain = await navigator.clipboard.readText();
+    enterEditMode(t);
+    const err = commitCellEdit(t, 1, 1, 'う');
+    await copyAllText(t);
+    const edited = await navigator.clipboard.readText();
+    const toastMsg = $('#toast').textContent;
+    t.edit.unsaved = false;
+    exitEditMode(t);
+    closeTab(tabs.indexOf(t));
+    return { plain, edited, toastMsg, err };
+  });
+  assert.equal(r.plain, 'A,あ\r\nB,い\r\n');
+  assert.equal(r.err, null);
+  assert.equal(r.edited, 'A,あ\r\nB,う\r\n');
+  assert.match(r.toastMsg, /編集 1 セルを反映/);
+});
+
+test('貼り直し: 表示中タブの中身だけ差し替え、設定は維持（Ctrl+Shift+V）', async () => {
+  const r = await page.evaluate(() => {
+    const paste = (s, shift) => {
+      if (shift) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, bubbles: true }));
+      const dt = new DataTransfer();
+      dt.setData('text/plain', s);
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    };
+    $('#selEnc').value = 'shift_jis';
+    const start = tabs.length;
+    paste('A|あ\nB|い', false);
+    const t = curTab();
+    t.delims = ['|']; t._cache = {};
+    t.query = 'う'; rebuildTextSearch(t);
+    renderAll(true);
+    paste('A|あ\nB|う\nC|え', true);
+    const after = {
+      sameTab: curTab() === t,
+      tabCount: tabs.length - start,
+      delims: [...t.delims],
+      enc: t.encSel,
+      rows: prepText(t).rows.map(x => [...x]),
+      hits: t.hits.length,
+    };
+    /* 編集モード中は差し替えない */
+    enterEditMode(t);
+    const blocked = !replaceTabText(t, 'X|Y');
+    const rowsKept = prepText(t).rows.length;
+    exitEditMode(t);
+    while (tabs.length > start) closeTab(tabs.length - 1);
+    return { ...after, blocked, rowsKept };
+  });
+  assert.equal(r.sameTab, true);
+  assert.equal(r.tabCount, 1, '新規タブは作られない');
+  assert.deepEqual(r.delims, ['|'], '区切り文字は維持');
+  assert.equal(r.enc, 'shift_jis');
+  assert.deepEqual(r.rows, [['A', 'あ'], ['B', 'う'], ['C', 'え']]);
+  assert.equal(r.hits, 1, '検索は差し替え後の内容で再計算');
+  assert.equal(r.blocked, true);
+  assert.equal(r.rowsKept, 3);
 });
 
 test('IME変換確定のEnterではセル確定・検索が発火しない', async () => {

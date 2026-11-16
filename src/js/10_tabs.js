@@ -42,19 +42,88 @@ async function openFiles(fileList){
 
 /* --- クリップボードから開く ---
    テキストはコピー元でデコード済み（元バイト・元文字コードは失われている）ため、
-   UTF-8で符号化したバイト列を合成して通常タブとして開く。
+   ツールバーの文字コード欄で指定中の文字コードで符号化したバイト列を合成して通常タブとして開く
+   （「自動判定」のときは表示中タブの判定結果、タブが無ければUTF-8）。
+   符号化できない文字は '?' に置換して件数を通知する。
    ファイルのコピー（エクスプローラー等）は実バイトが取れるので openFiles に渡す */
 let pasteSeq = 0;
+/** 貼り付けテキストの符号化に使う文字コード（ツールバーの指定に従う） */
+function pasteEncoding(){
+  const sel = /** @type {HTMLSelectElement|null} */ ($('#selEnc'));
+  const v = sel ? sel.value : 'auto';
+  if(v && v!=='auto' && ENCODINGS.some(e=>e[0]===v)) return v;
+  const t = curTab();
+  return t ? resolvedEnc(t) : 'utf-8';
+}
+/** text を enc で符号化。符号化できない文字は '?' に置換し、その文字を bad に集める */
+function encodeTextAs(text, enc){
+  const encoder = makeEncoder(enc) || makeEncoder('utf-8');
+  const whole = encoder.encode(text);
+  if(whole.bytes) return {bytes:whole.bytes, bad:[]};
+  const q = encoder.encode('?').bytes || new Uint8Array([0x3F]);
+  const parts = []; const bad = []; let total = 0;
+  for(const ch of text){
+    let r = encoder.encode(ch).bytes;
+    if(!r){ bad.push(ch); r = q; }
+    parts.push(r); total += r.length;
+  }
+  const bytes = new Uint8Array(total); let o = 0;
+  for(const p of parts){ bytes.set(p, o); o += p.length; }
+  return {bytes, bad};
+}
 function openPastedText(text){
   if(!text){ toast('クリップボードにテキストがありません'); return; }
-  const bytes = new TextEncoder().encode(text);
+  const enc = pasteEncoding();
+  const {bytes, bad} = encodeTextAs(text, enc);
   const name = `貼り付け${++pasteSeq}`;
   const tab = createTab(name, bytes);
-  tab.encSel = 'utf-8';                          // 合成バイト列はUTF-8（表示を明確化）
+  tab.encSel = enc;                              // 合成に使った文字コードで表示
   if(text.includes('\t')) tab.delims = ['\t'];   // Excelの範囲コピー(TSV)はタブ区切りを初期適用
   tabs.push(tab); panes[activePane].cur = tabs.length-1;
   renderTabs(); renderAll();
-  toast(`クリップボードの内容を「${name}」として開きました（${bytes.length.toLocaleString()} バイト・UTF-8）`);
+  let msg = `クリップボードの内容を「${name}」として開きました（${bytes.length.toLocaleString()} バイト・${encLabel(enc)}）`;
+  if(bad.length){
+    const uniq = [...new Set(bad)];
+    msg += `。${encLabel(enc)} で表せない文字 ${bad.length.toLocaleString()} 個を「?」に置換しました（${uniq.slice(0,10).join(' ')}${uniq.length>10?' …':''}）`;
+  }
+  toast(msg);
+}
+/* --- 今のタブに貼り直す ---
+   表示中タブの中身だけをクリップボードのテキストに差し替える（新規タブは作らない）。
+   区切り文字・ヘッダー定義・改行指定・表示方式・マーカー・検索語・スクロール位置は維持。
+   外部エディタで直す → コピー → ここで貼り直して確認、の往復用 */
+function replaceTabText(tab, text){
+  if(!text){ toast('クリップボードにテキストがありません'); return false; }
+  if(tab.edit){ toast('編集モード中は貼り直しできません（編集モードを終了してから実行してください）'); return false; }
+  const enc = pasteEncoding();
+  const {bytes, bad} = encodeTextAs(text, enc);
+  tab.bytes = bytes;
+  tab.encSel = enc;                                // 自動判定で文字コードが揺れないよう確定させる
+  tab._detEnc = null; tab._dec = null; tab._cache = {};
+  tab.binLimit = Math.min(BIN_STEP, bytes.length);
+  tab.renderedText = 0; tab.renderedBin = 0;
+  tab.hits = []; tab.hitsByLine = new Map(); tab.curHit = -1;
+  tab.binHits = []; tab.binCurHit = -1;
+  tab.selA = null; tab.selB = null;
+  tab._valCur = -1;
+  prepText(tab);
+  recountTextMarkers(tab);
+  rebuildTextSearch(tab);
+  if(tab.valOn) ensureValidation(tab);
+  diffInvalidate(tab);
+  renderAllPanes(true);
+  let msg = `「${tab.name}」の内容を貼り直しました（${tab._cache.lines.length.toLocaleString()} 行・${bytes.length.toLocaleString()} バイト・${encLabel(enc)}）`;
+  if(bad.length){
+    const uniq = [...new Set(bad)];
+    msg += `。${encLabel(enc)} で表せない文字 ${bad.length.toLocaleString()} 個を「?」に置換しました（${uniq.slice(0,10).join(' ')}${uniq.length>10?' …':''}）`;
+  }
+  toast(msg);
+  return true;
+}
+/* Ctrl+Shift+V は keydown で印を付け、直後の paste イベントを「貼り直し」として扱う */
+let _repasteAt = 0;
+function markRepasteKey(e){
+  if((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='v') _repasteAt = Date.now();
 }
 function handlePaste(e){
   const t = e.target;
@@ -63,7 +132,11 @@ function handlePaste(e){
   if(!dt) return;
   if(dt.files && dt.files.length){ e.preventDefault(); openFiles([...dt.files]); return; }
   const text = dt.getData('text/plain');
-  if(text){ e.preventDefault(); openPastedText(text); }
+  const repaste = Date.now() - _repasteAt < 1000; _repasteAt = 0;
+  if(!text) return;
+  e.preventDefault();
+  const cur = curTab();
+  if(repaste && cur) replaceTabText(cur, text); else openPastedText(text);
 }
 async function pasteFromClipboardButton(){
   /* ボタン経由は Async Clipboard API。権限がない環境は Ctrl+V を案内 */
@@ -72,6 +145,16 @@ async function pasteFromClipboardButton(){
     openPastedText(text);
   }catch(err){
     toast('クリップボードを読み取れませんでした。画面上で Ctrl+V を押してください');
+  }
+}
+async function repasteFromClipboardButton(){
+  const cur = curTab();
+  if(!cur){ pasteFromClipboardButton(); return; }
+  try{
+    const text = await navigator.clipboard.readText();
+    replaceTabText(cur, text);
+  }catch(err){
+    toast('クリップボードを読み取れませんでした。画面上で Ctrl+Shift+V を押してください');
   }
 }
 

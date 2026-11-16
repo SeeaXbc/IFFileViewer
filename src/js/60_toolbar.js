@@ -9,6 +9,8 @@ function initToolbar(){
   $('#btnOpen').onclick = ()=>$('#fileInput').click();
   $('#fileInput').onchange = e=>{ openFiles([...e.target.files]); e.target.value=''; };
   $('#btnPaste').onclick = pasteFromClipboardButton;
+  $('#btnRepaste').onclick = repasteFromClipboardButton;
+  $('#btnCopyAll').onclick = ()=>copyAllText(curTab());
 
   $('#btnText').onclick = ()=>setMode('text');
   $('#btnBin').onclick  = ()=>setMode('bin');
@@ -239,7 +241,7 @@ function updateToolbar(){
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
   $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
   updateToolbar3();
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter','#btnCopyAll','#btnRepaste']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
