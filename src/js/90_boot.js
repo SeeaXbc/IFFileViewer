@@ -62,6 +62,7 @@ function initDnD(){
     if(paneEl && layout!=='single') setActivePane(+paneEl.dataset.p);
     openFiles(files);
   });
+  document.addEventListener('keydown', markRepasteKey);  // Ctrl+Shift+V で今のタブに貼り直し
   document.addEventListener('paste', handlePaste);  // Ctrl+V でクリップボードから開く
 }
 

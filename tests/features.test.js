@@ -265,6 +265,48 @@ test('全体コピー: 編集結果を反映し、改行コードは元のまま
   assert.match(r.toastMsg, /編集 1 セルを反映/);
 });
 
+test('貼り直し: 表示中タブの中身だけ差し替え、設定は維持（Ctrl+Shift+V）', async () => {
+  const r = await page.evaluate(() => {
+    const paste = (s, shift) => {
+      if (shift) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'V', ctrlKey: true, shiftKey: true, bubbles: true }));
+      const dt = new DataTransfer();
+      dt.setData('text/plain', s);
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    };
+    $('#selEnc').value = 'shift_jis';
+    const start = tabs.length;
+    paste('A|あ\nB|い', false);
+    const t = curTab();
+    t.delims = ['|']; t._cache = {};
+    t.query = 'う'; rebuildTextSearch(t);
+    renderAll(true);
+    paste('A|あ\nB|う\nC|え', true);
+    const after = {
+      sameTab: curTab() === t,
+      tabCount: tabs.length - start,
+      delims: [...t.delims],
+      enc: t.encSel,
+      rows: prepText(t).rows.map(x => [...x]),
+      hits: t.hits.length,
+    };
+    /* 編集モード中は差し替えない */
+    enterEditMode(t);
+    const blocked = !replaceTabText(t, 'X|Y');
+    const rowsKept = prepText(t).rows.length;
+    exitEditMode(t);
+    while (tabs.length > start) closeTab(tabs.length - 1);
+    return { ...after, blocked, rowsKept };
+  });
+  assert.equal(r.sameTab, true);
+  assert.equal(r.tabCount, 1, '新規タブは作られない');
+  assert.deepEqual(r.delims, ['|'], '区切り文字は維持');
+  assert.equal(r.enc, 'shift_jis');
+  assert.deepEqual(r.rows, [['A', 'あ'], ['B', 'う'], ['C', 'え']]);
+  assert.equal(r.hits, 1, '検索は差し替え後の内容で再計算');
+  assert.equal(r.blocked, true);
+  assert.equal(r.rowsKept, 3);
+});
+
 test('IME変換確定のEnterではセル確定・検索が発火しない', async () => {
   await openBytes(page, 'IME_TEST', readSample('IF_ORDER_20260705'));
   await page.waitForSelector('.trow');
