@@ -295,6 +295,17 @@ async function copyRow(tab, li){
   toast(ok ? `${(li+1).toLocaleString()} 行目をコピーしました（区切り文字を含む元テキスト・${line.length.toLocaleString()} 文字）` : 'コピーに失敗しました');
 }
 
+/* 全体コピー：表示中タブの全文（編集モード中は編集結果を反映。改行コードは元のまま、BOMは含めない） */
+async function copyAllText(tab){
+  if(!tab) return;
+  const c = prepText(tab);
+  const text = c.text;
+  if(!text){ toast('コピーする内容がありません'); return; }
+  const ok = await copyTextToClipboard(text);
+  const edited = tab.edit && tab.edit.edits.size ? `・編集 ${tab.edit.edits.size.toLocaleString()} セルを反映` : '';
+  toast(ok ? `全体をコピーしました（${c.lines.length.toLocaleString()} 行・${text.length.toLocaleString()} 文字${edited}）` : 'コピーに失敗しました');
+}
+
 /* --- 列プロファイル(4.7)：列ごとの統計 --- */
 function computeProfile(tab, startRow){
   const c = prepText(tab);

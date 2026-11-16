@@ -236,6 +236,35 @@ test('貼り付け: ツールバーで指定中の文字コードで符号化さ
   assert.equal(r.u16.hex, '42 30');
 });
 
+test('全体コピー: 編集結果を反映し、改行コードは元のまま', async () => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const r = await page.evaluate(async () => {
+    $('#selEnc').value = 'shift_jis';
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'A,あ\r\nB,い\r\n');
+    document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    const t = curTab();
+    t.delims = [','];
+    t._cache = {};
+    renderAll(true);
+    await copyAllText(t);
+    const plain = await navigator.clipboard.readText();
+    enterEditMode(t);
+    const err = commitCellEdit(t, 1, 1, 'う');
+    await copyAllText(t);
+    const edited = await navigator.clipboard.readText();
+    const toastMsg = $('#toast').textContent;
+    t.edit.unsaved = false;
+    exitEditMode(t);
+    closeTab(tabs.indexOf(t));
+    return { plain, edited, toastMsg, err };
+  });
+  assert.equal(r.plain, 'A,あ\r\nB,い\r\n');
+  assert.equal(r.err, null);
+  assert.equal(r.edited, 'A,あ\r\nB,う\r\n');
+  assert.match(r.toastMsg, /編集 1 セルを反映/);
+});
+
 test('IME変換確定のEnterではセル確定・検索が発火しない', async () => {
   await openBytes(page, 'IME_TEST', readSample('IF_ORDER_20260705'));
   await page.waitForSelector('.trow');

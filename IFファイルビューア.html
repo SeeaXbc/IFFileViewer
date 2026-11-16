@@ -230,6 +230,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
 <div id="tabbar">
   <button id="btnOpen" title="ファイルを開く">📂 開く</button>
   <button id="btnPaste" title="クリップボードの内容を新しいタブで開く（Ctrl+V でも可）">📋 貼り付け</button>
+  <button id="btnCopyAll" title="表示中タブの全文をクリップボードへコピー（編集結果を反映・区切り文字と改行は元のまま）">⎘ 全体コピー</button>
 </div>
 
 <div id="toolbar">
@@ -406,6 +407,7 @@ body.dragging .content{outline:3px dashed var(--accent);outline-offset:-6px}
         <li>文字コードは自動判定（BOM＋推定）。化ける場合は「文字コード」で明示指定してください。</li>
         <li><b>クリップボードから開く</b>：画面上で <kbd>Ctrl+V</kbd>（または「📋 貼り付け」ボタン）で、コピーした内容を新しいタブとして開きます。Excelの範囲コピーはタブ区切りを自動適用してそのままグリッド表示できます。エクスプローラーで<b>ファイルをコピー</b>して貼り付けた場合は、通常のファイルと同じ扱い（バイト列そのまま）で開きます。</li>
         <li>※テキストの貼り付けはコピー元でデコード済みのため、<b>元ファイルのバイト列・文字コードは保持されません</b>（ツールバーの<b>文字コード欄で指定中の文字コード</b>で符号化して取り込み。「自動判定」時は表示中タブの判定結果、タブが無ければUTF-8。表せない文字は「?」に置換）。文字化けやバイト単位の調査が目的の場合はファイルとして開いてください。</li>
+        <li><b>⎘ 全体コピー</b>：表示中タブの全文をクリップボードへコピーします。編集モード中は<b>編集結果を反映</b>した内容になります（区切り文字・改行は元のまま、表示上の余白は含みません）。編集モードを終了すると表示は元の内容に戻るため、終了前にコピーしてください。</li>
       </ul>
 
       <h3>テキストモード</h3>
@@ -1212,6 +1214,17 @@ async function copyRow(tab, li){
   if(line==null) return;
   const ok = await copyTextToClipboard(line);
   toast(ok ? `${(li+1).toLocaleString()} 行目をコピーしました（区切り文字を含む元テキスト・${line.length.toLocaleString()} 文字）` : 'コピーに失敗しました');
+}
+
+/* 全体コピー：表示中タブの全文（編集モード中は編集結果を反映。改行コードは元のまま、BOMは含めない） */
+async function copyAllText(tab){
+  if(!tab) return;
+  const c = prepText(tab);
+  const text = c.text;
+  if(!text){ toast('コピーする内容がありません'); return; }
+  const ok = await copyTextToClipboard(text);
+  const edited = tab.edit && tab.edit.edits.size ? `・編集 ${tab.edit.edits.size.toLocaleString()} セルを反映` : '';
+  toast(ok ? `全体をコピーしました（${c.lines.length.toLocaleString()} 行・${text.length.toLocaleString()} 文字${edited}）` : 'コピーに失敗しました');
 }
 
 /* --- 列プロファイル(4.7)：列ごとの統計 --- */
@@ -2957,6 +2970,7 @@ function initToolbar(){
   $('#btnOpen').onclick = ()=>$('#fileInput').click();
   $('#fileInput').onchange = e=>{ openFiles([...e.target.files]); e.target.value=''; };
   $('#btnPaste').onclick = pasteFromClipboardButton;
+  $('#btnCopyAll').onclick = ()=>copyAllText(curTab());
 
   $('#btnText').onclick = ()=>setMode('text');
   $('#btnBin').onclick  = ()=>setMode('bin');
@@ -3187,7 +3201,7 @@ function updateToolbar(){
   $('#btnDiffExp').classList.toggle('hiddenCtl', !hasDiff);
   $('#diffInfo').textContent = dm ? (hasDiff ? `${dm.cells.size.toLocaleString()}${dm.over?'+':''} セル / ${dm.rows.size.toLocaleString()} 行` : '差分なし（全行一致）') : '';
   updateToolbar3();
-  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter']
+  ['#btnText','#btnBin','#selEnc','#selNl','#delimAdd','#btnExcel','#btnEm','#selDef','#btnWs','#searchBox','#btnPrev','#btnNext','#chkCase','#btnRegex','#btnEditMode','#btnFilter','#btnProf','#btnVal','#btnMakeDef','#btnColFilter','#btnCopyAll']
     .forEach(s=>{ $(s).disabled=!has; });
   $('#toolbar2').style.display = (has && t.mode==='text') ? '' : 'none';
   updateEditCtls();
